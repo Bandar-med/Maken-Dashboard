@@ -1,0 +1,1720 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة التحكم - وكالة المباني البلدية</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg: #F4F5F7;
+  --surface: #FFFFFF;
+  --border: #E4E6EA;
+  --text-primary: #1A1D23;
+  --text-secondary: #6B7280;
+  --text-muted: #9CA3AF;
+  --blue: #2563EB;
+  --blue-light: #EFF6FF;
+  --blue-mid: #BFDBFE;
+  --red: #DC2626;
+  --red-light: #FEF2F2;
+  --red-mid: #FECACA;
+  --amber: #D97706;
+  --amber-light: #FFFBEB;
+  --amber-mid: #FDE68A;
+  --green: #059669;
+  --green-light: #ECFDF5;
+  --green-mid: #A7F3D0;
+  --purple: #7C3AED;
+  --purple-light: #F5F3FF;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  direction: rtl;
+}
+
+/* SIDEBAR */
+.sidebar {
+  position: fixed;
+  right: 0; top: 0; bottom: 0;
+  width: 220px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  padding: 0;
+}
+
+.sidebar-logo {
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo-mark {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.logo-icon {
+  width: 36px; height: 36px;
+  background: var(--blue);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.logo-icon svg { width: 20px; height: 20px; fill: white; }
+
+.logo-text { font-size: 13px; font-weight: 600; color: var(--text-primary); line-height: 1.3; }
+.logo-sub { font-size: 11px; color: var(--text-muted); }
+
+.nav { padding: 12px 8px; flex: 1; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  transition: all 0.15s;
+  margin-bottom: 2px;
+  border: none; background: none; width: 100%; text-align: right;
+}
+
+.nav-item:hover { background: var(--bg); color: var(--text-primary); }
+
+.nav-item.active {
+  background: var(--blue-light);
+  color: var(--blue);
+  font-weight: 500;
+}
+
+.nav-item .nav-icon { width: 18px; height: 18px; flex-shrink: 0; }
+
+.nav-badge {
+  margin-right: auto;
+  background: var(--red);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 1px 6px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* MAIN */
+.main {
+  margin-right: 220px;
+  min-height: 100vh;
+  padding: 0;
+}
+
+/* TOPBAR */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 50;
+}
+
+.topbar-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.topbar-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+.btn-refresh {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px; color: var(--text-secondary);
+  cursor: pointer; font-family: inherit;
+  transition: all 0.15s;
+}
+.btn-refresh:hover { background: var(--border); }
+
+.live-badge {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--green);
+  background: var(--green-light);
+  padding: 5px 10px; border-radius: 20px;
+}
+.live-dot {
+  width: 6px; height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* CONTENT */
+.content { padding: 24px; }
+
+/* SECTIONS */
+.section { display: none; }
+.section.active { display: block; }
+
+/* FILTERS BAR */
+.filters-bar {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 20px; align-items: flex-end;
+}
+
+.filter-group { display: flex; flex-direction: column; gap: 4px; }
+.filter-label { font-size: 11px; color: var(--text-muted); font-weight: 500; }
+
+select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 140px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+select:focus { border-color: var(--blue); }
+
+/* KPI CARDS */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+
+.kpi-card:hover { box-shadow: var(--shadow-md); border-color: #D1D5DB; transform: translateY(-1px); }
+.kpi-card.clickable:hover .kpi-value { text-decoration: underline; text-decoration-color: currentColor; text-underline-offset: 3px; }
+
+.kpi-accent {
+  position: absolute; top: 0; right: 0;
+  width: 3px; height: 100%;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.kpi-label { font-size: 11px; color: var(--text-muted); font-weight: 500; margin-bottom: 8px; }
+.kpi-value { font-size: 28px; font-weight: 600; line-height: 1; margin-bottom: 4px; }
+.kpi-hint { font-size: 11px; color: var(--text-muted); }
+
+/* BODY GRID */
+.body-grid {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+/* CHART CARD */
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+}
+
+.card-title {
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+  margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.donut-wrap {
+  position: relative; width: 180px; height: 180px;
+  margin: 0 auto;
+}
+
+.donut-center {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.donut-total { font-size: 26px; font-weight: 600; color: var(--text-primary); }
+.donut-label { font-size: 11px; color: var(--text-muted); }
+
+.chart-legend {
+  margin-top: 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+.legend-row {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px;
+}
+
+.legend-left { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.legend-val { font-weight: 500; color: var(--text-primary); }
+
+/* STATS SIDE */
+.stats-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex; flex-direction: column; gap: 0;
+}
+
+.stat-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.stat-row:last-child { border-bottom: none; padding-bottom: 0; }
+.stat-tag { font-size: 10px; font-weight: 600; letter-spacing: 0.5px; }
+.stat-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.stat-sub { font-size: 11px; color: var(--text-muted); }
+
+/* DETAILS PANEL */
+.details-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: none;
+}
+
+.details-panel.open { display: block; }
+
+.panel-header {
+  padding: 14px 20px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.panel-title { font-size: 13px; font-weight: 600; }
+.panel-count { font-size: 12px; color: var(--text-muted); }
+
+.btn-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 18px; line-height: 1;
+  padding: 0 4px;
+}
+.btn-close:hover { color: var(--text-primary); }
+
+/* TABLE */
+.table-wrap { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+thead th {
+  text-align: right;
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #FAFAFA; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge-blue { background: var(--blue-light); color: var(--blue); }
+.badge-red { background: var(--red-light); color: var(--red); }
+.badge-amber { background: var(--amber-light); color: var(--amber); }
+.badge-green { background: var(--green-light); color: var(--green); }
+.badge-purple { background: var(--purple-light); color: var(--purple); }
+.badge-gray { background: var(--bg); color: var(--text-secondary); }
+
+.btn-whatsapp {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #25D366;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.btn-whatsapp:hover { background: #20BA5A; }
+
+/* PLACEHOLDER */
+.placeholder-section {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 300px;
+  text-align: center; gap: 12px;
+}
+
+.placeholder-icon {
+  width: 56px; height: 56px;
+  background: var(--bg);
+  border-radius: var(--radius-lg);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.placeholder-icon svg { width: 28px; height: 28px; color: var(--text-muted); }
+.placeholder-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.placeholder-msg { font-size: 13px; color: var(--text-muted); max-width: 380px; line-height: 1.7; }
+
+.kpi-row-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.kpi-row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+/* Days indicator */
+.days-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.days-ok { background: var(--green-light); color: var(--green); }
+.days-warn { background: var(--amber-light); color: var(--amber); }
+.days-danger { background: var(--red-light); color: var(--red); }
+
+.unassigned-alert {
+  display: flex; align-items: center; gap: 10px;
+  background: #F5F3FF; border: 1.5px solid #7C3AED;
+  border-radius: var(--radius-sm); padding: 10px 14px;
+  margin-bottom: 16px; font-size: 12px; color: #5B21B6;
+}
+.unassigned-alert svg { flex-shrink: 0; }
+
+.critical-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.critical-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--red-light); border-radius: 6px; padding: 7px 12px; font-size: 12px;
+}
+.critical-item-id { font-weight: 600; color: var(--red); }
+.critical-item-info { color: var(--text-secondary); flex: 1; margin: 0 10px; }
+
+.quick-filter-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  font-family: inherit; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-secondary); transition: all 0.15s;
+}
+.quick-filter-btn.active-filter { background: var(--red-light); border-color: var(--red); color: var(--red); }
+
+.workload-bar-wrap { height: 4px; background: var(--border); border-radius: 2px; margin-top: 4px; }
+.workload-bar { height: 100%; border-radius: 2px; }
+
+.studio-compare { display: flex; gap: 8px; margin-top: 12px; }
+.studio-compare-item { flex: 1; border-radius: 6px; padding: 10px 12px; }
+.studio-compare-label { font-size: 10px; font-weight: 600; letter-spacing: 0.4px; margin-bottom: 4px; }
+.studio-compare-pct { font-size: 20px; font-weight: 600; }
+.studio-compare-sub { font-size: 11px; margin-top: 2px; }
+
+@media (max-width: 900px) {
+  .sidebar { width: 180px; }
+  .main { margin-right: 180px; }
+  .kpi-row { grid-template-columns: repeat(3, 1fr); }
+  .kpi-row-4 { grid-template-columns: repeat(2, 1fr); }
+  .body-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo" style="padding:14px 14px 12px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <img src="data:image/jpeg;base64,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" alt="شعار أمانة المدينة المنورة"
+           style="width:100px;height:100px;object-fit:contain;border-radius:6px;background:#fff;padding:2px;flex-shrink:0;">
+      <div>
+        <div class="logo-text" style="font-size:20px;line-height:1.3;font-weight:700;">وكالة المباني</div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <button class="nav-item active" onclick="showSection('licenses')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6M9 16h6M17 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2z"/></svg>
+      طلبات الرخص
+      <span class="nav-badge" id="badge-licenses">0</span>
+    </button>
+    <button class="nav-item" onclick="showSection('studio')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      الاستديو التصميمي
+    </button>
+    <button class="nav-item" onclick="showSection('premium')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      المشاريع المميزة
+    </button>
+    <button class="nav-item" onclick="showSection('raseel')">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      رسيل
+      <span class="nav-badge" id="badge-raseel">0</span>
+    </button>
+  </nav>
+
+  <div class="sidebar-footer">بيانات بلدي — آخر تحديث: اليوم</div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="topbar-title">طلبات الرخص</div>
+      <div class="topbar-sub" id="topbar-sub">متابعة الطلبات النشطة والتنبيهات</div>
+    </div>
+    <div class="topbar-actions">
+      <div class="live-badge"><span class="live-dot"></span>مباشر</div>
+      <button class="btn-refresh" onclick="location.reload()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        تحديث
+      </button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ==================== SECTION 1: LICENSES ==================== -->
+    <div class="section active" id="section-licenses">
+
+      <div class="filters-bar">
+        <div class="filter-group">
+          <span class="filter-label">البلدية / القطاع</span>
+          <select id="lic-muni" onchange="renderLicenses()">
+            <option value="all">الكل</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">نوع الطلب</span>
+          <select id="lic-type" onchange="renderLicenses()">
+            <option value="all">الكل</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">الموظف</span>
+          <select id="lic-emp" onchange="renderLicenses()">
+            <option value="all">الكل</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">الأيام</span>
+          <select id="lic-days" onchange="renderLicenses()">
+            <option value="all">الكل</option>
+            <option value="delayed">متأخرة (+3)</option>
+            <option value="near">قاربت التأخير (يومان)</option>
+            <option value="ok">ضمن المهلة</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">فلتر سريع</span>
+          <button class="quick-filter-btn" id="btn-only-delayed" onclick="toggleDelayedOnly()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            عرض المتأخرة فقط
+          </button>
+        </div>
+      </div>
+
+      <!-- Unassigned Alert Banner -->
+      <div id="unassigned-alert-banner" class="unassigned-alert" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span id="unassigned-alert-text"></span>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-row" id="lic-kpis"></div>
+
+      <!-- Body -->
+      <div class="body-grid">
+        <div>
+          <div class="chart-card">
+            <div class="card-title">توزيع حالات الطلبات</div>
+            <div class="donut-wrap">
+              <canvas id="licDonut" role="img" aria-label="مخطط دائري لتوزيع طلبات الرخص"></canvas>
+              <div class="donut-center">
+                <div class="donut-total" id="lic-donut-total">0</div>
+                <div class="donut-label">إجمالي</div>
+              </div>
+            </div>
+            <div class="chart-legend" id="lic-legend"></div>
+          </div>
+        </div>
+        <div>
+          <div class="stats-card" id="lic-stats"></div>
+        </div>
+      </div>
+
+      <!-- Detail Panels -->
+      <div id="panel-delayed" class="details-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title" style="color:var(--red)">الطلبات المتأخرة</div>
+            <div class="panel-count" id="panel-delayed-count"></div>
+          </div>
+          <button class="btn-close" onclick="closePanel('panel-delayed')">×</button>
+        </div>
+        <div class="table-wrap"><table id="table-delayed"><thead><tr>
+          <th>رقم الطلب</th><th>البلدية</th><th>نوع الطلب</th><th>الحالة</th>
+          <th>الموظف</th><th>الأيام</th><th>تواصل</th>
+        </tr></thead><tbody id="tbody-delayed"></tbody></table></div>
+      </div>
+
+      <div id="panel-unassigned" class="details-panel" style="margin-top:12px">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title" style="color:var(--purple)">الطلبات غير المُسندة</div>
+            <div class="panel-count" id="panel-unassigned-count"></div>
+          </div>
+          <button class="btn-close" onclick="closePanel('panel-unassigned')">×</button>
+        </div>
+        <div class="table-wrap"><table id="table-unassigned"><thead><tr>
+          <th>رقم الطلب</th><th>البلدية</th><th>نوع الطلب</th><th>الحالة</th>
+          <th>الأيام</th><th>تواصل</th>
+        </tr></thead><tbody id="tbody-unassigned"></tbody></table></div>
+      </div>
+
+      <div id="panel-near" class="details-panel" style="margin-top:12px">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title" style="color:var(--amber)">طلبات قاربت التأخير</div>
+            <div class="panel-count" id="panel-near-count"></div>
+          </div>
+          <button class="btn-close" onclick="closePanel('panel-near')">×</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr>
+          <th>رقم الطلب</th><th>البلدية</th><th>نوع الطلب</th><th>الحالة</th>
+          <th>الموظف</th><th>الأيام</th><th>تواصل</th>
+        </tr></thead><tbody id="tbody-near"></tbody></table></div>
+      </div>
+
+      <!-- Critical Requests Top 5 -->
+      <div id="panel-critical" class="details-panel" style="margin-top:12px">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title" style="color:var(--red)">🔴 الطلبات الحرجة — أعلى 5 أيام</div>
+            <div class="panel-count" id="panel-critical-count"></div>
+          </div>
+          <button class="btn-close" onclick="closePanel('panel-critical')">×</button>
+        </div>
+        <div style="padding:16px 20px">
+          <div class="critical-list" id="critical-list"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ==================== SECTION 2: STUDIO ==================== -->
+    <div class="section" id="section-studio">
+
+      <div class="filters-bar">
+        <div class="filter-group">
+          <span class="filter-label">نوع الاستوديو</span>
+          <select id="st-type" onchange="renderStudio()">
+            <option value="all">الكل</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">البلدية</span>
+          <select id="st-muni" onchange="renderStudio()">
+            <option value="all">الكل</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">الموظف</span>
+          <select id="st-emp" onchange="renderStudio()">
+            <option value="all">الكل</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">الأيام</span>
+          <select id="st-days" onchange="renderStudio()">
+            <option value="all">الكل</option>
+            <option value="delayed">متأخرة</option>
+            <option value="ok">ضمن المهلة</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="kpi-row-4" id="st-kpis"></div>
+
+      <div class="body-grid">
+        <div>
+          <div class="chart-card">
+            <div class="card-title">توزيع حالات طلبات الاستوديو</div>
+            <div class="donut-wrap">
+              <canvas id="stDonut" role="img" aria-label="مخطط دائري لتوزيع طلبات الاستوديو"></canvas>
+              <div class="donut-center">
+                <div class="donut-total" id="st-donut-total">0</div>
+                <div class="donut-label">إجمالي</div>
+              </div>
+            </div>
+            <div class="chart-legend" id="st-legend"></div>
+          </div>
+        </div>
+        <div>
+          <div class="stats-card" id="st-stats"></div>
+        </div>
+      </div>
+
+      <!-- Studio type comparison -->
+      <div class="chart-card" id="st-comparison" style="margin-bottom:12px;display:none">
+        <div class="card-title">مقارنة: سكني مقابل تجاري</div>
+        <div class="studio-compare" id="studio-compare-body"></div>
+      </div>
+
+      <div id="panel-st-delayed" class="details-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title" style="color:var(--red)">طلبات الاستوديو المتأخرة</div>
+            <div class="panel-count" id="panel-st-delayed-count"></div>
+          </div>
+          <button class="btn-close" onclick="closePanel('panel-st-delayed')">×</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr>
+          <th>رقم الطلب</th><th>نوع الاستوديو</th><th>البلدية</th><th>الحالة</th>
+          <th>الموظف</th><th>الأيام</th><th>تواصل</th>
+        </tr></thead><tbody id="tbody-st-delayed"></tbody></table></div>
+      </div>
+
+    </div>
+
+    <!-- ==================== SECTION 3: PREMIUM ==================== -->
+    <div class="section" id="section-premium">
+
+      <div class="kpi-row-3" style="margin-bottom:24px">
+        <div class="kpi-card">
+          <div class="kpi-accent" style="background:var(--blue)"></div>
+          <div class="kpi-label">إجمالي المشاريع</div>
+          <div class="kpi-value" style="color:var(--blue)">—</div>
+          <div class="kpi-hint">لا توجد بيانات</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-accent" style="background:var(--red)"></div>
+          <div class="kpi-label">مشاريع متأخرة</div>
+          <div class="kpi-value" style="color:var(--red)">—</div>
+          <div class="kpi-hint">لا توجد بيانات</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-accent" style="background:var(--amber)"></div>
+          <div class="kpi-label">تحتاج تدخلاً</div>
+          <div class="kpi-value" style="color:var(--amber)">—</div>
+          <div class="kpi-hint">لا توجد بيانات</div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="placeholder-section">
+          <div class="placeholder-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <div class="placeholder-title">المشاريع المميزة</div>
+          <div class="placeholder-msg">لا توجد بيانات متاحة حاليًا، سيتم تفعيل الشاشة عند توفر ملف المشاريع المميزة</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ==================== SECTION 4: RASEEL ==================== -->
+    <div class="section" id="section-raseel">
+
+      <div class="filters-bar">
+        <div class="filter-group">
+          <span class="filter-label">الجهة</span>
+          <select id="ras-dept" onchange="renderRaseel()">
+            <option value="all">الكل</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">التصنيف</span>
+          <select id="ras-class" onchange="renderRaseel()">
+            <option value="all">الكل</option>
+            <option value="critical">حرجة (+10 أيام)</option>
+            <option value="attention">تحتاج انتباهاً (3-10)</option>
+            <option value="active">نشطة (1-3)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="kpi-row-4" id="ras-kpis"></div>
+
+      <div class="body-grid">
+        <div>
+          <div class="chart-card">
+            <div class="card-title">توزيع المعاملات حسب الحالة</div>
+            <div class="donut-wrap">
+              <canvas id="rasDonut" role="img" aria-label="مخطط دائري لتوزيع معاملات رسيل"></canvas>
+              <div class="donut-center">
+                <div class="donut-total" id="ras-donut-total">0</div>
+                <div class="donut-label">إجمالي</div>
+              </div>
+            </div>
+            <div class="chart-legend" id="ras-legend"></div>
+          </div>
+        </div>
+        <div>
+          <div class="stats-card" id="ras-stats"></div>
+        </div>
+      </div>
+
+      <!-- Detail Panels -->
+      <div id="panel-ras-critical" class="details-panel" style="margin-top:0">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title" style="color:var(--red)">المعاملات الحرجة</div>
+            <div class="panel-count" id="panel-ras-critical-count"></div>
+          </div>
+          <button class="btn-close" onclick="closePanel('panel-ras-critical')">×</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr>
+          <th>رقم المعاملة</th><th>الجهة</th><th>النوع</th><th>الموضوع</th>
+          <th>الموظف</th><th>تاريخ الإحالة</th><th>الأيام</th>
+        </tr></thead><tbody id="tbody-ras-critical"></tbody></table></div>
+      </div>
+
+      <div id="panel-ras-attention" class="details-panel" style="margin-top:12px">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title" style="color:var(--amber)">المعاملات التي تحتاج انتباهاً</div>
+            <div class="panel-count" id="panel-ras-attention-count"></div>
+          </div>
+          <button class="btn-close" onclick="closePanel('panel-ras-attention')">×</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr>
+          <th>رقم المعاملة</th><th>الجهة</th><th>النوع</th><th>الموضوع</th>
+          <th>الموظف</th><th>تاريخ الإحالة</th><th>الأيام</th>
+        </tr></thead><tbody id="tbody-ras-attention"></tbody></table></div>
+      </div>
+
+      <div id="panel-ras-active" class="details-panel" style="margin-top:12px">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title" style="color:var(--green)">المعاملات النشطة</div>
+            <div class="panel-count" id="panel-ras-active-count"></div>
+          </div>
+          <button class="btn-close" onclick="closePanel('panel-ras-active')">×</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr>
+          <th>رقم المعاملة</th><th>الجهة</th><th>النوع</th><th>الموضوع</th>
+          <th>الموظف</th><th>تاريخ الإحالة</th><th>الأيام</th>
+        </tr></thead><tbody id="tbody-ras-active"></tbody></table></div>
+      </div>
+
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ========== DYNAMIC EXCEL DATA LOADING ==========
+
+let licData = [];
+let studioData = [];
+let raseelData = [];
+let raseelSummary = { total: 0, active: 0, attention: 0, critical: 0, depts: [] };
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function cs(v) {
+  if (v === null || v === undefined || v === 'None') return '';
+  return String(v).trim();
+}
+function cleanEmp(v) {
+  const s = cs(v);
+  if (!s || s.length < 3 || s.includes('/') || s.includes(':') || /^\d/.test(s)) return '';
+  return s;
+}
+function cleanDays(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  const n = typeof v === 'number' ? v : parseInt(String(v).replace(/[^\d-]/g, ''));
+  return isNaN(n) || n < 0 ? 0 : n;
+}
+function cleanPhone(v) {
+  const s = cs(v);
+  return s.startsWith('05') ? s : '';
+}
+function arInt(s) {
+  if (s === null || s === undefined) return 0;
+  let x = String(s);
+  '٠١٢٣٤٥٦٧٨٩'.split('').forEach((a, i) => { x = x.replaceAll(a, String(i)); });
+  '۰۱۲۳۴۵۶۷۸۹'.split('').forEach((a, i) => { x = x.replaceAll(a, String(i)); });
+  return parseInt(x) || 0;
+}
+function isValidName(s) {
+  const x = cs(s);
+  return x.length >= 3 && !x.includes('/') && !x.includes(':') && !/^\d/.test(x);
+}
+function xlsxRead(buf) {
+  return XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: false, raw: true });
+}
+function sheetRows(wb, idx) {
+  const ws = wb.Sheets[wb.SheetNames[idx || 0]];
+  return XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+}
+function rowsToObjects(rows) {
+  const headers = rows[0] || [];
+  return rows.slice(1)
+    .map(row => {
+      const o = {};
+      headers.forEach((h, i) => { if (h) o[String(h).trim()] = (row[i] !== undefined ? row[i] : null); });
+      return o;
+    })
+    .filter(o => Object.values(o).some(v => v !== null && v !== ''));
+}
+
+// ── Parse licenses.xlsx ───────────────────────────────────────────────────────
+function parseLicenses(buf) {
+  const wb = xlsxRead(buf);
+  const objs = rowsToObjects(sheetRows(wb));
+  return objs.map(r => ({
+    id:     cs(r['رقم الطلب']),
+    muni:   cs(r['البلدية']),
+    type:   cs(r['نوع الطلب']),
+    status: cs(r['حالة الطلب']),
+    emp:    cleanEmp(r['اسم الموظف']),
+    phone:  cleanPhone(r['رقم جوال الموظف']),
+    days:   cleanDays(r['عدد الايام'])
+  })).filter(r => r.id);
+}
+
+// ── Parse occupancy.xlsx ──────────────────────────────────────────────────────
+function parseOccupancy(buf) {
+  const wb = xlsxRead(buf);
+  const objs = rowsToObjects(sheetRows(wb));
+  const byId = {};
+  objs.forEach(r => {
+    const id = cs(r['رقم الطلب']);
+    if (!id) return;
+    const days = cleanDays(r['عدد الايام الكلي']);
+    if (!byId[id] || days > byId[id].days) {
+      const status = cs(r['حالة الطلب']);
+      byId[id] = {
+        id, muni: cs(r['البلدية']), type: 'شهادة أشغال', status,
+        emp:   status.includes('استقبال') ? '' : cleanEmp(r['اسم الموظف']),
+        phone: '', days
+      };
+    }
+  });
+  return Object.values(byId);
+}
+
+// ── Parse studio.xlsx ─────────────────────────────────────────────────────────
+const STU_MAP = {
+  'الطلب لدى مهندس الاستوديو التصميمي':  'قيد المراجعة',
+  'الطلب لدى مشرف الاستوديو التصميمي':   'قيد المراجعة',
+  'الطلب لدى استقبال الاستوديو التصميمي':'قيد الاستقبال',
+  'مستلم من المكتب الهندسي':              'قيد المراجعة',
+  'مستلم من شركة الفحص':                  'قيد المراجعة',
+  'الطلب لدى مشرف الرخص الإنشائية':       'معتمد',
+  'المستفيد':                              'معتمد',
+  'الاستديو التصميمي بهيئات التطوير':     'قيد المراجعة',
+  'مسودة':                                'مسودة',
+};
+function parseStudio(buf) {
+  const wb = xlsxRead(buf);
+  const objs = rowsToObjects(sheetRows(wb));
+  const byId = {};
+  objs.forEach(r => {
+    const id = cs(r['رقم الطلب']);
+    if (!id) return;
+    const days = cleanDays(r['عدد الايام الكلي']);
+    if (!byId[id] || days > byId[id].days) {
+      const rawStatus = cs(r['حالة الطلب']);
+      byId[id] = {
+        id,
+        studioType: cs(r['حالة الطلب']) === 'الاستديو التصميمي بهيئات التطوير' ? 'تجاري' : 'سكني',
+        muni:   cs(r['البلدية']),
+        status: STU_MAP[rawStatus] || rawStatus,
+        emp:    cleanEmp(r['اسم الموظف']),
+        phone:  '',
+        days
+      };
+    }
+  });
+  return Object.values(byId);
+}
+
+// ── Parse raseel_summary.xls ──────────────────────────────────────────────────
+// Row layout: col0=total, col3=20+days, col7=10-20days, col11=3-10days, col17=<3days, col22=dept
+function parseRaseelSummary(buf) {
+  const wb = xlsxRead(buf);
+  const rows = sheetRows(wb);
+  const headerIdx = rows.findIndex(r => r && r.some(v => v && String(v).includes('الاجمالى')));
+  const dataStart = headerIdx >= 0 ? headerIdx + 1 : 11;
+  const depts = [];
+  for (let i = dataStart; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const dept = cs(row[22]);
+    const total = arInt(row[0]);
+    if (!dept || !total || dept.includes('الاجمالى') || dept.includes('الاجمالي')) continue;
+    depts.push({
+      dept, total,
+      active:    arInt(row[17]),
+      attention: arInt(row[11]),
+      critical:  arInt(row[7]) + arInt(row[3])
+    });
+  }
+  return {
+    total:     depts.reduce((s, d) => s + d.total, 0),
+    active:    depts.reduce((s, d) => s + d.active, 0),
+    attention: depts.reduce((s, d) => s + d.attention, 0),
+    critical:  depts.reduce((s, d) => s + d.critical, 0),
+    depts
+  };
+}
+
+// ── Parse raseel_details.xls ──────────────────────────────────────────────────
+function parseRaseelDetails(buf) {
+  const wb = xlsxRead(buf);
+  const rows = sheetRows(wb);
+  const details = [];
+  let dept = 'وكالة المباني', emp = '';
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const col29 = cs(row[29]);
+    if (col29 === 'إسم الإدارة:') { const d = cs(row[15]); if (d) dept = d; continue; }
+    if (col29 === 'إسم الموظف:')  { const e = cs(row[24]); emp = (isValidName(e) && !e.includes('غير محدد')) ? e : ''; continue; }
+    const tidRaw = cs(row[28]);
+    const typ    = cs(row[27]);
+    const subj   = cs(row[19]);
+    const date   = cs(row[8]).replace('هـ', '').trim();
+    const remp   = cs(row[11]);
+    const hasId  = /[\u0660-\u0669\u06F0-\u06F90-9]/.test(tidRaw) && tidRaw.length > 3;
+    if (hasId && typ && typ !== 'نوع المعاملة') {
+      const tid = tidRaw.split('\n')[0].trim();
+      let days = 0;
+      if (i + 1 < rows.length) {
+        const nds = cs((rows[i + 1] || [])[8]);
+        if (nds.includes('يوم')) days = arInt(nds);
+      }
+      if (tid) details.push({
+        id: tid, dept, type: typ || 'غير محدد',
+        subject: subj ? subj.slice(0, 80) : '—',
+        emp: emp,
+        date, days
+      });
+    }
+  }
+  return details;
+}
+
+// ── Rebuild filter dropdowns ──────────────────────────────────────────────────
+function rebuildSelect(id, values) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const sorted = [...new Set(values)].filter(Boolean).sort();
+  el.innerHTML = '<option value="all">الكل</option>' +
+    sorted.map(v => `<option value="${v}">${v}</option>`).join('');
+}
+function rebuildAllFilters() {
+  rebuildSelect('lic-muni', licData.map(r => r.muni));
+  rebuildSelect('lic-type', licData.map(r => r.type));
+  rebuildSelect('lic-emp',  licData.filter(r => r.emp).map(r => r.emp));
+  rebuildSelect('st-muni',  studioData.map(r => r.muni));
+  rebuildSelect('st-emp',   studioData.filter(r => r.emp).map(r => r.emp));
+  rebuildSelect('st-type',  studioData.map(r => r.studioType));
+  rebuildSelect('ras-dept', raseelSummary.depts.map(d => d.dept));
+}
+
+// ── File reading helper ───────────────────────────────────────────────────────
+function readFileBuf(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Failed to read ' + file.name));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// ── File input handlers ───────────────────────────────────────────────────────
+const _fileBuffers = {};
+const _fileMap = {
+  'licenses':       ['licenses.xlsx',       'lic'],
+  'occupancy':      ['occupancy.xlsx',       'occ'],
+  'studio':         ['studio.xlsx',          'stu'],
+  'raseel_summary': ['raseel_summary.xls',  'rsum'],
+  'raseel_details': ['raseel_details.xls',  'rdet'],
+};
+let _loadedCount = 0;
+const _TOTAL_FILES = 5;
+
+async function onFileSelected(key, file) {
+  try {
+    _fileBuffers[key] = await readFileBuf(file);
+    _loadedCount++;
+    const btn = document.getElementById('file-btn-' + key);
+    if (btn) { btn.style.background = '#ECFDF5'; btn.style.color = '#059669'; btn.style.borderColor = '#A7F3D0'; btn.textContent = '✓ ' + file.name; }
+    const prog = document.getElementById('load-progress');
+    if (prog) prog.textContent = `تم تحميل ${_loadedCount} من ${_TOTAL_FILES} ملفات`;
+    if (_loadedCount === _TOTAL_FILES) processAllFiles();
+  } catch (e) {
+    console.error('File read error:', e);
+  }
+}
+
+async function processAllFiles() {
+  try {
+    licData       = [...parseLicenses(_fileBuffers['licenses']), ...parseOccupancy(_fileBuffers['occupancy'])];
+    studioData    = parseStudio(_fileBuffers['studio']);
+    raseelSummary = parseRaseelSummary(_fileBuffers['raseel_summary']);
+    raseelData    = parseRaseelDetails(_fileBuffers['raseel_details']);
+    rebuildAllFilters();
+    renderLicenses();
+    renderStudio();
+    renderRaseel();
+    // Hide upload panel, show dashboard
+    const panel = document.getElementById('upload-panel');
+    if (panel) panel.style.display = 'none';
+    document.querySelector('.content').style.display = 'block';
+  } catch (e) {
+    console.error('Parse error:', e);
+    const prog = document.getElementById('load-progress');
+    if (prog) { prog.style.color = '#DC2626'; prog.textContent = 'خطأ في قراءة الملفات: ' + e.message; }
+  }
+}
+
+// ── Upload panel HTML ─────────────────────────────────────────────────────────
+function buildUploadPanel() {
+  const content = document.querySelector('.content');
+  if (content) content.style.display = 'none';
+  const files = [
+    { key: 'licenses',       label: 'طلبات الرخص',     hint: 'licenses.xlsx' },
+    { key: 'occupancy',      label: 'شهادات الأشغال',  hint: 'occupancy.xlsx' },
+    { key: 'studio',         label: 'الاستديو التصميمي',hint: 'studio.xlsx' },
+    { key: 'raseel_summary', label: 'رسيل — الملخص',   hint: 'raseel_summary.xls' },
+    { key: 'raseel_details', label: 'رسيل — التفاصيل', hint: 'raseel_details.xls' },
+  ];
+  const panel = document.createElement('div');
+  panel.id = 'upload-panel';
+  panel.style.cssText = 'padding:40px 24px;direction:rtl;font-family:inherit;max-width:600px;margin:0 auto;';
+  panel.innerHTML = `
+    <div style="margin-bottom:28px">
+      <div style="font-size:17px;font-weight:600;color:#1A1D23;margin-bottom:6px">تحميل ملفات البيانات</div>
+      <div style="font-size:13px;color:#6B7280">اختر الملفات الخمسة لتفعيل لوحة التحكم</div>
+    </div>
+    ${files.map(f => `
+    <div style="margin-bottom:12px">
+      <label style="font-size:11px;color:#6B7280;font-weight:500;display:block;margin-bottom:4px">${f.label} <span style="color:#9CA3AF">(${f.hint})</span></label>
+      <label id="file-btn-${f.key}" for="file-input-${f.key}" style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:#F4F5F7;border:1px solid #E4E6EA;border-radius:8px;cursor:pointer;font-size:13px;color:#6B7280;transition:all .15s">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        اختر ملف ${f.hint}
+      </label>
+      <input type="file" id="file-input-${f.key}" accept=".xlsx,.xls" style="display:none"
+        onchange="onFileSelected('${f.key}', this.files[0])">
+    </div>`).join('')}
+    <div id="load-progress" style="margin-top:20px;font-size:13px;color:#6B7280;text-align:center">تم تحميل 0 من 5 ملفات</div>
+  `;
+  const main = document.querySelector('.main') || document.querySelector('main');
+  if (main) main.insertBefore(panel, main.querySelector('.content'));
+}
+
+window.addEventListener('DOMContentLoaded', buildUploadPanel);
+</script>
+
+
+<script>
+// ========== UTILITIES ==========
+
+function toWA(phone) {
+  return '966' + phone.slice(1);
+}
+
+function daysPill(days) {
+  if (days >= 3) return `<span class="days-pill days-danger">${days} أيام</span>`;
+  if (days >= 2) return `<span class="days-pill days-warn">${days} أيام</span>`;
+  return `<span class="days-pill days-ok">${days} يوم</span>`;
+}
+
+function waBtn(phone, id) {
+  const wa = toWA(phone);
+  return `<a class="btn-whatsapp" href="https://wa.me/${wa}?text=بخصوص الطلب ${id}" target="_blank">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.121 1.532 5.849L.057 23.5l5.805-1.524A11.95 11.95 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.856 0-3.596-.488-5.102-1.342l-.366-.217-3.444.904.92-3.353-.239-.382A9.945 9.945 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+    واتساب
+  </a>`;
+}
+
+let licDonutChart, stDonutChart, rasDonutChart;
+
+function makeDonut(id, labels, data, colors) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors, borderWidth: 0, hoverOffset: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: c => ' ' + c.label + ': ' + c.parsed }
+      }},
+      cutout: '68%'
+    }
+  });
+}
+
+// ========== SECTION: LICENSES ==========
+
+// ========== QUICK FILTER ==========
+let delayedOnlyMode = false;
+function toggleDelayedOnly() {
+  delayedOnlyMode = !delayedOnlyMode;
+  const btn = document.getElementById('btn-only-delayed');
+  btn.classList.toggle('active-filter', delayedOnlyMode);
+  btn.textContent = delayedOnlyMode ? '✕ إلغاء الفلتر' : 'عرض المتأخرة فقط';
+  if (delayedOnlyMode) {
+    // close all panels first, then open delayed
+    document.querySelectorAll('.section.active .details-panel').forEach(p => p.classList.remove('open'));
+    renderLicenses();
+    setTimeout(() => {
+      document.getElementById('panel-delayed').classList.add('open');
+      document.getElementById('panel-delayed').scrollIntoView({ behavior:'smooth', block:'nearest' });
+    }, 50);
+  } else {
+    renderLicenses();
+  }
+}
+
+function getFilteredLic() {
+  const muni = document.getElementById('lic-muni').value;
+  const type = document.getElementById('lic-type').value;
+  const emp  = document.getElementById('lic-emp').value;
+  const days = document.getElementById('lic-days').value;
+  return licData.filter(r => {
+    if (delayedOnlyMode && r.days < 3) return false;
+    if (muni !== 'all' && r.muni !== muni) return false;
+    if (type !== 'all' && r.type !== type) return false;
+    if (emp  !== 'all' && r.emp  !== emp)  return false;
+    if (days === 'delayed' && r.days <= 3)  return false;
+    if (days === 'near' && r.days !== 2)   return false;
+    if (days === 'ok' && r.days >= 2)      return false;
+    return true;
+  });
+}
+
+function renderLicenses() {
+  const data = getFilteredLic();
+  const total = data.length;
+  const delayed = data.filter(r => r.days > 3);
+  const unassigned = data.filter(r => (r.status === 'بانتظار اعتماد البلدية' || r.status === 'الطلب لدى استقبال شهادات الاشغال'));
+  // Near delay: exactly day 2 (one day before the 3-day limit)
+  const near = data.filter(r => r.days === 2);
+  const critical5 = [...licData].filter(r => r.days >= 5).sort((a,b) => b.days - a.days).slice(0, 5);
+  const onTime = data.filter(r => r.days < 3);
+  const compliance = total > 0 ? Math.round((onTime.length / total) * 100) : 0;
+
+  document.getElementById('badge-licenses').textContent = delayed.length;
+
+  // Unassigned alert banner
+  const banner = document.getElementById('unassigned-alert-banner');
+  if (unassigned.length > 0) {
+    banner.style.display = 'flex';
+    document.getElementById('unassigned-alert-text').textContent =
+      `تنبيه: يوجد ${unassigned.length} طلب غير مُسند بانتظار اعتماد البلدية — يتطلب إجراءً فورياً`;
+  } else {
+    banner.style.display = 'none';
+  }
+
+  document.getElementById('lic-kpis').innerHTML = `
+    <div class="kpi-card" style="cursor:default">
+      <div class="kpi-accent" style="background:var(--blue)"></div>
+      <div class="kpi-label">إجمالي الطلبات</div>
+      <div class="kpi-value" style="color:var(--blue)">${total}</div>
+      <div class="kpi-hint">طلب نشط</div>
+    </div>
+    <div class="kpi-card clickable" onclick="togglePanel('panel-delayed')">
+      <div class="kpi-accent" style="background:var(--red)"></div>
+      <div class="kpi-label">طلبات متأخرة</div>
+      <div class="kpi-value" style="color:var(--red)">${delayed.length}</div>
+      <div class="kpi-hint">تجاوزت 3 أيام ← اضغط للتفاصيل</div>
+    </div>
+    <div class="kpi-card clickable" onclick="togglePanel('panel-unassigned')" style="border:1.5px solid #7C3AED">
+      <div class="kpi-accent" style="background:var(--purple)"></div>
+      <div class="kpi-label">غير مُسندة ⚠</div>
+      <div class="kpi-value" style="color:var(--purple)">${unassigned.length}</div>
+      <div class="kpi-hint">انتظار موافقة البلدية</div>
+    </div>
+    <div class="kpi-card clickable" onclick="togglePanel('panel-near')">
+      <div class="kpi-accent" style="background:var(--amber)"></div>
+      <div class="kpi-label">قاربت التأخير</div>
+      <div class="kpi-value" style="color:var(--amber)">${near.length}</div>
+      <div class="kpi-hint">يوم واحد قبل الحد</div>
+    </div>
+    <div class="kpi-card clickable" onclick="togglePanel('panel-critical')">
+      <div class="kpi-accent" style="background:var(--red)"></div>
+      <div class="kpi-label">حرجة جداً</div>
+      <div class="kpi-value" style="color:var(--red)">${critical5.length > 0 ? licData.filter(r=>r.days>=5).length : 0}</div>
+      <div class="kpi-hint">5 أيام وأكثر ← أعلى 5</div>
+    </div>
+  `;
+
+  const active = data.filter(r => r.days < 2 && r.status !== 'انتظار موافقة البلدية');
+  const donutData = [active.length, delayed.length, unassigned.length, near.length];
+  const donutLabels = ['نشطة', 'متأخرة', 'غير مسندة', 'قاربت التأخير'];
+  const donutColors = ['#2563EB','#DC2626','#7C3AED','#D97706'];
+
+  document.getElementById('lic-donut-total').textContent = total;
+  if (licDonutChart) licDonutChart.destroy();
+  licDonutChart = makeDonut('licDonut', donutLabels, donutData, donutColors);
+
+  document.getElementById('lic-legend').innerHTML = donutLabels.map((l,i) => `
+    <div class="legend-row">
+      <span class="legend-left"><span class="legend-dot" style="background:${donutColors[i]}"></span>${l}</span>
+      <span class="legend-val">${donutData[i]}</span>
+    </div>`).join('');
+
+  // Stats: best/worst sector + workload insight
+  const muniCounts = {};
+  data.forEach(r => { muniCounts[r.muni] = (muniCounts[r.muni]||0) + (r.days >= 3 ? 1 : 0); });
+  const muniEntries = Object.entries(muniCounts);
+  const bestMuni  = [...muniEntries].sort((a,b)=>a[1]-b[1])[0];
+  const worstMuni = [...muniEntries].sort((a,b)=>b[1]-a[1])[0];
+
+  // Workload: count requests per employee
+  const empLoad = {};
+  data.filter(r=>r.emp).forEach(r => { empLoad[r.emp] = (empLoad[r.emp]||0) + 1; });
+  const empArr = Object.entries(empLoad).sort((a,b)=>b[1]-a[1]);
+  const mostLoaded  = empArr[0];
+  const leastLoaded = empArr[empArr.length-1];
+  const maxLoad = mostLoaded ? mostLoaded[1] : 1;
+
+  document.getElementById('lic-stats').innerHTML = `
+    <div class="stat-row">
+      <span class="stat-tag" style="color:var(--green)">أفضل قطاع</span>
+      <span class="stat-name">${bestMuni ? bestMuni[0] : '—'}</span>
+      <span class="stat-sub">أقل عدد تأخيرات</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-tag" style="color:var(--red)">أكثر تأخيراً</span>
+      <span class="stat-name">${worstMuni ? worstMuni[0] : '—'}</span>
+      <span class="stat-sub">${worstMuni ? worstMuni[1] : 0} طلبات متأخرة</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-tag" style="color:var(--red)">الأعلى تحميلاً</span>
+      <span class="stat-name">${mostLoaded ? mostLoaded[0] : '—'}</span>
+      <div class="workload-bar-wrap"><div class="workload-bar" style="width:100%;background:var(--red)"></div></div>
+      <span class="stat-sub">${mostLoaded ? mostLoaded[1] : 0} طلبات نشطة</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-tag" style="color:var(--green)">الأقل تحميلاً</span>
+      <span class="stat-name">${leastLoaded ? leastLoaded[0] : '—'}</span>
+      <div class="workload-bar-wrap"><div class="workload-bar" style="width:${leastLoaded&&maxLoad?Math.round(leastLoaded[1]/maxLoad*100):0}%;background:var(--green)"></div></div>
+      <span class="stat-sub">${leastLoaded ? leastLoaded[1] : 0} طلبات نشطة</span>
+    </div>
+  `;
+
+  // Detail tables
+  document.getElementById('panel-delayed-count').textContent = `${delayed.length} طلب`;
+  document.getElementById('tbody-delayed').innerHTML = [...delayed].sort((a,b)=>b.days-a.days).map(r => `
+    <tr>
+      <td><strong>${r.id}</strong></td>
+      <td>${r.muni}</td>
+      <td><span class="badge badge-blue">${r.type}</span></td>
+      <td><span class="badge badge-gray">${r.status}</span></td>
+      <td>${r.emp || '—'}</td>
+      <td>${daysPill(r.days)}</td>
+      <td>${r.phone ? waBtn(r.phone, r.id) : '—'}</td>
+    </tr>`).join('');
+
+  document.getElementById('panel-unassigned-count').textContent = `${unassigned.length} طلب`;
+  document.getElementById('tbody-unassigned').innerHTML = [...unassigned].sort((a,b)=>b.days-a.days).map(r => `
+    <tr>
+      <td><strong>${r.id}</strong></td>
+      <td>${r.muni}</td>
+      <td><span class="badge badge-blue">${r.type}</span></td>
+      <td><span class="badge badge-purple">${r.status}</span></td>
+      <td>${daysPill(r.days)}</td>
+      <td>${r.phone ? waBtn(r.phone, r.id) : '—'}</td>
+    </tr>`).join('');
+
+  document.getElementById('panel-near-count').textContent = `${near.length} طلب`;
+  document.getElementById('tbody-near').innerHTML = near.map(r => `
+    <tr>
+      <td><strong>${r.id}</strong></td>
+      <td>${r.muni}</td>
+      <td><span class="badge badge-blue">${r.type}</span></td>
+      <td><span class="badge badge-gray">${r.status}</span></td>
+      <td>${r.emp || '—'}</td>
+      <td>${daysPill(r.days)}</td>
+      <td>${r.phone ? waBtn(r.phone, r.id) : '—'}</td>
+    </tr>`).join('');
+
+  // Critical top-5
+  document.getElementById('panel-critical-count').textContent = `أعلى ${critical5.length} طلبات من حيث عدد الأيام`;
+  document.getElementById('critical-list').innerHTML = critical5.map(r => `
+    <div class="critical-item">
+      <span class="critical-item-id">${r.id}</span>
+      <span class="critical-item-info">${r.muni} — ${r.type} — ${r.emp || 'غير مُسند'}</span>
+      ${daysPill(r.days)}
+      <span style="margin-right:8px">${r.phone ? waBtn(r.phone, r.id) : ''}</span>
+    </div>`).join('');
+}
+
+// ========== SECTION: STUDIO ==========
+
+function getFilteredStudio() {
+  const type = document.getElementById('st-type').value;
+  const muni = document.getElementById('st-muni').value;
+  const emp  = document.getElementById('st-emp').value;
+  const days = document.getElementById('st-days').value;
+  return studioData.filter(r => {
+    if (type !== 'all' && r.studioType !== type) return false;
+    if (muni !== 'all' && r.muni  !== muni)  return false;
+    if (emp  !== 'all' && r.emp   !== emp)   return false;
+    if (days === 'delayed' && r.days < 3)    return false;
+    if (days === 'ok' && r.days >= 3)        return false;
+    return true;
+  });
+}
+
+function renderStudio() {
+  const data = getFilteredStudio();
+  const total = data.length;
+  const delayed = data.filter(r => r.days > 3);
+  const review  = data.filter(r => r.status === 'قيد المراجعة');
+  const approved = data.filter(r => r.status === 'معتمد');
+  const returned = data.filter(r => r.status === 'مُعاد');
+  const rejected = data.filter(r => r.status === 'مرفوض');
+
+  document.getElementById('st-kpis').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:var(--blue)"></div>
+      <div class="kpi-label">إجمالي طلبات الاستوديو</div>
+      <div class="kpi-value" style="color:var(--blue)">${total}</div>
+      <div class="kpi-hint">طلب</div>
+    </div>
+    <div class="kpi-card clickable" onclick="togglePanel('panel-st-delayed')">
+      <div class="kpi-accent" style="background:var(--red)"></div>
+      <div class="kpi-label">متأخرة</div>
+      <div class="kpi-value" style="color:var(--red)">${delayed.length}</div>
+      <div class="kpi-hint">تجاوزت 3 أيام</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:var(--amber)"></div>
+      <div class="kpi-label">قيد المراجعة</div>
+      <div class="kpi-value" style="color:var(--amber)">${review.length}</div>
+      <div class="kpi-hint">طلب</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:var(--green)"></div>
+      <div class="kpi-label">معتمدة</div>
+      <div class="kpi-value" style="color:var(--green)">${approved.length}</div>
+      <div class="kpi-hint">طلب</div>
+    </div>
+  `;
+
+  const donutData = [review.length, approved.length, returned.length, rejected.length];
+  const donutLabels = ['قيد المراجعة', 'معتمد', 'مُعاد', 'مرفوض'];
+  const donutColors = ['#D97706','#059669','#7C3AED','#DC2626'];
+
+  document.getElementById('st-donut-total').textContent = total;
+  if (stDonutChart) stDonutChart.destroy();
+  stDonutChart = makeDonut('stDonut', donutLabels, donutData, donutColors);
+
+  document.getElementById('st-legend').innerHTML = donutLabels.map((l,i) => `
+    <div class="legend-row">
+      <span class="legend-left"><span class="legend-dot" style="background:${donutColors[i]}"></span>${l}</span>
+      <span class="legend-val">${donutData[i]}</span>
+    </div>`).join('');
+
+  // Stats
+  const muniDelay = {};
+  data.forEach(r => { muniDelay[r.muni] = (muniDelay[r.muni]||0) + (r.days>=3?1:0); });
+  const muniArr = Object.entries(muniDelay);
+  const bestM = muniArr.sort((a,b)=>a[1]-b[1])[0];
+  const worstM = muniArr.sort((a,b)=>b[1]-a[1])[0];
+
+  document.getElementById('st-stats').innerHTML = `
+    <div class="stat-row">
+      <span class="stat-tag" style="color:var(--green)">أفضل بلدية</span>
+      <span class="stat-name">${bestM ? bestM[0] : '—'}</span>
+      <span class="stat-sub">أقل تأخيرات</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-tag" style="color:var(--red)">أكثر تأخيراً</span>
+      <span class="stat-name">${worstM ? worstM[0] : '—'}</span>
+      <span class="stat-sub">${worstM ? worstM[1] : 0} تأخيرات</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-tag" style="color:var(--blue)">المعتمدة</span>
+      <span class="stat-name">${approved.length} طلب</span>
+      <span class="stat-sub">من إجمالي ${total}</span>
+    </div>
+  `;
+
+  // Studio type comparison (always from full dataset)
+  const residential = studioData.filter(r => r.studioType === 'سكني');
+  const commercial  = studioData.filter(r => r.studioType === 'تجاري');
+  const allSt = studioData.length;
+  const resPct = allSt > 0 ? Math.round(residential.length / allSt * 100) : 0;
+  const comPct = allSt > 0 ? Math.round(commercial.length / allSt * 100) : 0;
+  const resDelayed = residential.filter(r=>r.days>=3).length;
+  const comDelayed = commercial.filter(r=>r.days>=3).length;
+  const compCard = document.getElementById('st-comparison');
+  compCard.style.display = 'block';
+  document.getElementById('studio-compare-body').innerHTML = `
+    <div class="studio-compare-item" style="background:#EFF6FF">
+      <div class="studio-compare-label" style="color:#1D4ED8">سكني</div>
+      <div class="studio-compare-pct" style="color:#1D4ED8">${resPct}%</div>
+      <div class="studio-compare-sub" style="color:#3B82F6">${residential.length} طلب — متأخرة: ${resDelayed}</div>
+    </div>
+    <div class="studio-compare-item" style="background:#F5F3FF">
+      <div class="studio-compare-label" style="color:#5B21B6">تجاري</div>
+      <div class="studio-compare-pct" style="color:#5B21B6">${comPct}%</div>
+      <div class="studio-compare-sub" style="color:#7C3AED">${commercial.length} طلب — متأخرة: ${comDelayed}</div>
+    </div>`;
+
+  document.getElementById('panel-st-delayed-count').textContent = `${delayed.length} طلب`;
+  document.getElementById('tbody-st-delayed').innerHTML = [...delayed].sort((a,b)=>b.days-a.days).map(r => `
+    <tr>
+      <td><strong>${r.id}</strong></td>
+      <td><span class="badge badge-blue">${r.studioType}</span></td>
+      <td>${r.muni}</td>
+      <td><span class="badge badge-amber">${r.status}</span></td>
+      <td>${r.emp}</td>
+      <td>${daysPill(r.days)}</td>
+      <td>${waBtn(r.phone, r.id)}</td>
+    </tr>`).join('');
+}
+
+// ========== SECTION: RASEEL ==========
+
+function getRasDays(r) { return r.days; }
+
+function rasClass(days) {
+  if (days > 10) return 'critical';
+  if (days >= 3) return 'attention';
+  return 'active';
+}
+
+function getFilteredRaseel() {
+  const dept  = document.getElementById('ras-dept').value;
+  const cls   = document.getElementById('ras-class').value;
+  return raseelData.filter(r => {
+    if (dept !== 'all' && r.dept !== dept) return false;
+    if (cls  !== 'all' && rasClass(r.days) !== cls) return false;
+    return true;
+  });
+}
+
+function fillRasTable(tbodyId, rows) {
+  const sorted = [...rows].sort((a,b) => b.days - a.days);
+  document.getElementById(tbodyId).innerHTML = sorted.map(r => `
+    <tr>
+      <td><strong>${r.id}</strong></td>
+      <td>${r.dept}</td>
+      <td><span class="badge badge-gray">${r.type}</span></td>
+      <td style="max-width:180px">${r.subject}</td>
+      <td>${r.emp}</td>
+      <td style="direction:ltr;text-align:right">${r.date}</td>
+      <td>${daysPill(r.days)}</td>
+    </tr>`).join('');
+}
+
+function renderRaseel() {
+  const data = getFilteredRaseel();
+  // Use summary file values for KPIs (more accurate than detail rows)
+  const dept_filter = document.getElementById('ras-dept').value;
+  let total, criticalCount, attentionCount, activeCount;
+  if (dept_filter === 'all') {
+    total = raseelSummary.total;
+    criticalCount = raseelSummary.critical;
+    attentionCount = raseelSummary.attention;
+    activeCount = raseelSummary.active;
+  } else {
+    const ds = raseelSummary.depts.find(d => d.dept === dept_filter);
+    total = ds ? ds.total : data.length;
+    criticalCount = ds ? ds.critical : data.filter(r => rasClass(r.days) === 'critical').length;
+    attentionCount = ds ? ds.attention : data.filter(r => rasClass(r.days) === 'attention').length;
+    activeCount = ds ? ds.active : data.filter(r => rasClass(r.days) === 'active').length;
+  }
+  const critical  = data.filter(r => rasClass(r.days) === 'critical');
+  const attention = data.filter(r => rasClass(r.days) === 'attention');
+  const active    = data.filter(r => rasClass(r.days) === 'active');
+
+  document.getElementById('badge-raseel').textContent = criticalCount;
+
+  document.getElementById('ras-kpis').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:var(--blue)"></div>
+      <div class="kpi-label">إجمالي المعاملات</div>
+      <div class="kpi-value" style="color:var(--blue)">${total}</div>
+      <div class="kpi-hint">معاملة</div>
+    </div>
+    <div class="kpi-card clickable" onclick="togglePanel('panel-ras-critical')">
+      <div class="kpi-accent" style="background:var(--red)"></div>
+      <div class="kpi-label">حرجة</div>
+      <div class="kpi-value" style="color:var(--red)">${critical.length}</div>
+      <div class="kpi-hint">أكثر من 10 أيام</div>
+    </div>
+    <div class="kpi-card clickable" onclick="togglePanel('panel-ras-attention')">
+      <div class="kpi-accent" style="background:var(--amber)"></div>
+      <div class="kpi-label">تحتاج انتباهاً</div>
+      <div class="kpi-value" style="color:var(--amber)">${attention.length}</div>
+      <div class="kpi-hint">3 – 10 أيام</div>
+    </div>
+    <div class="kpi-card clickable" onclick="togglePanel('panel-ras-active')">
+      <div class="kpi-accent" style="background:var(--green)"></div>
+      <div class="kpi-label">نشطة</div>
+      <div class="kpi-value" style="color:var(--green)">${active.length}</div>
+      <div class="kpi-hint">1 – 3 أيام</div>
+    </div>
+  `;
+
+  const donutData = [activeCount, attentionCount, criticalCount];
+  const donutLabels = ['نشطة', 'تحتاج انتباهاً', 'حرجة'];
+  const donutColors = ['#059669','#D97706','#DC2626'];
+
+  document.getElementById('ras-donut-total').textContent = total;
+  if (rasDonutChart) rasDonutChart.destroy();
+  rasDonutChart = makeDonut('rasDonut', donutLabels, donutData, donutColors);
+
+  document.getElementById('ras-legend').innerHTML = donutLabels.map((l,i) => `
+    <div class="legend-row">
+      <span class="legend-left"><span class="legend-dot" style="background:${donutColors[i]}"></span>${l}</span>
+      <span class="legend-val">${donutData[i]}</span>
+    </div>`).join('');
+
+  // Stats
+  const deptDelay = {};
+  data.forEach(r => { deptDelay[r.dept] = (deptDelay[r.dept]||0) + (rasClass(r.days)==='critical'?1:0); });
+  const deptArr = Object.entries(deptDelay);
+  const bestDept  = deptArr.sort((a,b)=>a[1]-b[1])[0];
+  const worstDept = deptArr.sort((a,b)=>b[1]-a[1])[0];
+
+  document.getElementById('ras-stats').innerHTML = `
+    <div class="stat-row">
+      <span class="stat-tag" style="color:var(--green)">أفضل جهة</span>
+      <span class="stat-name">${bestDept ? bestDept[0] : '—'}</span>
+      <span class="stat-sub">أقل معاملات حرجة</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-tag" style="color:var(--red)">أكثر تأخيراً</span>
+      <span class="stat-name">${worstDept ? worstDept[0] : '—'}</span>
+      <span class="stat-sub">${worstDept ? worstDept[1] : 0} معاملة حرجة</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-tag" style="color:var(--blue)">نشطة من الإجمالي</span>
+      <span class="stat-name">${total > 0 ? Math.round(active.length/total*100) : 0}%</span>
+      <span class="stat-sub">نسبة المعاملات ضمن المهلة</span>
+    </div>
+  `;
+
+  document.getElementById('panel-ras-critical-count').textContent = `${critical.length} معاملة`;
+  document.getElementById('panel-ras-attention-count').textContent = `${attention.length} معاملة`;
+  document.getElementById('panel-ras-active-count').textContent = `${active.length} معاملة`;
+
+  fillRasTable('tbody-ras-critical',  critical);
+  fillRasTable('tbody-ras-attention', attention);
+  fillRasTable('tbody-ras-active',    active);
+}
+
+// ========== NAVIGATION ==========
+
+const sectionMeta = {
+  licenses: { title: 'طلبات الرخص', sub: 'متابعة الطلبات النشطة والتنبيهات' },
+  studio:   { title: 'الاستديو التصميمي', sub: 'طلبات الاستوديو السكني والتجاري' },
+  premium:  { title: 'المشاريع المميزة', sub: 'قيد التفعيل' },
+  raseel:   { title: 'رسيل — التواصل الإداري', sub: 'متابعة المعاملات الإدارية' },
+};
+
+function showSection(key) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('section-' + key).classList.add('active');
+  event.currentTarget.classList.add('active');
+  document.getElementById('topbar-title').textContent = sectionMeta[key].title;
+  document.getElementById('topbar-sub').textContent   = sectionMeta[key].sub;
+
+  // close all panels
+  document.querySelectorAll('.details-panel').forEach(p => p.classList.remove('open'));
+}
+
+function togglePanel(id) {
+  const panel = document.getElementById(id);
+  const isOpen = panel.classList.contains('open');
+  // close siblings in same section
+  document.querySelectorAll('.section.active .details-panel').forEach(p => p.classList.remove('open'));
+  if (!isOpen) panel.classList.add('open');
+  if (!isOpen) setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+}
+
+function closePanel(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// ========== INIT ==========
+renderLicenses();
+renderStudio();
+renderRaseel();
+</script>
+</body>
+</html>
