@@ -4946,20 +4946,132 @@ function parseXlsxFile(workbook, fileType) {
 
 function parseRaseelFile(workbook) {
   var ws = workbook.Sheets[workbook.SheetNames[0]];
+  var ref = ws['!ref'] || 'A1:AI418';
+  var range = XLSX.utils.decode_range(ref);
+  var maxRow = range.e.r;
+  console.log('Raseel rows:', maxRow + 1);
 
-  // Log all keys in ws to understand structure
-  var wsKeys = Object.keys(ws).filter(function(k){ return k[0] !== '!'; });
-  console.log('Raseel ws sample keys:', wsKeys.slice(0,20));
+  function cellVal(addr) {
+    var cell = ws[addr];
+    if (!cell) return '';
+    if (cell.t === 's') return String(cell.v || '');
+    if (cell.t === 'n') return cell.v;
+    return cell.w || cell.v || '';
+  }
 
-  // Log specific cells
-  console.log('ws.AC21:', JSON.stringify(ws['AC21']));
-  console.log('ws.AC22:', JSON.stringify(ws['AC22']));
-  console.log('ws.L21:', JSON.stringify(ws['L21']));
-  console.log('ws.O21:', JSON.stringify(ws['O21']));
-  console.log('ws.AB21:', JSON.stringify(ws['AB21']));
-  console.log('ws.AG21:', JSON.stringify(ws['AG21']));
+  function splitNL(s) {
+    s = String(s||'');
+    var i1 = s.indexOf('\r\n'); if (i1 >= 0) return [s.slice(0,i1).trim(), s.slice(i1+2).trim()];
+    var i2 = s.indexOf('\n');   if (i2 >= 0) return [s.slice(0,i2).trim(), s.slice(i2+1).trim()];
+    return [s.trim(), ''];
+  }
+  function cleanNL(s) {
+    s = String(s||''); var r='';
+    for(var i=0;i<s.length;i++){var c=s[i];r+=(c==='\r'||c==='\n')?' ':c;}
+    return r.trim();
+  }
 
-  return null;
+  // SheetJS column keys (shifted +1 from XML due to merged cells):
+  // AD = seq (١،٢،٣...)
+  // AC = رقم المعاملة\r\ndate
+  // AH = days (٢ يوم)
+  // J  = source\r\ndept
+  // P  = subject
+  // U  = type
+  // J  = emp (same as source? check)
+  // E  = date deadline
+
+  // Find dataStart: header row has AC containing رقم المعاملة
+  var dataStart = 0;
+  for (var r = 0; r <= Math.min(30, maxRow); r++) {
+    var v = String(cellVal('AC' + (r+1)) || '');
+    if (v.indexOf('\u0631\u0642\u0645 \u0627\u0644\u0645\u0639\u0627\u0645\u0644\u0629') >= 0) {
+      dataStart = r + 1; break;
+    }
+  }
+  // If not found, try AD
+  if (dataStart === 0) {
+    for (var r = 0; r <= Math.min(30, maxRow); r++) {
+      var v = String(cellVal('AD' + (r+1)) || '');
+      if (v.indexOf('\u0631\u0642\u0645') >= 0) { dataStart = r + 1; break; }
+    }
+  }
+  // Default fallback
+  if (dataStart === 0) dataStart = 19; // row 20 (0-based 19)
+  console.log('Raseel dataStart:', dataStart + 1);
+
+  // Debug first few data rows
+  for (var dr = dataStart; dr < Math.min(dataStart+3, maxRow); dr++) {
+    var rn = dr + 1;
+    console.log('Row'+rn+': AC='+JSON.stringify(cellVal('AC'+rn))+' AD='+JSON.stringify(cellVal('AD'+rn))+' AH='+JSON.stringify(cellVal('AH'+rn)));
+  }
+
+  var records = [];
+  var seen = {};
+
+  for (var r = dataStart; r <= maxRow; r++) {
+    var rowNum = r + 1;
+
+    // AC = رقم المعاملة\r\ndate (req id + date)
+    var reqFull = String(cellVal('AC' + rowNum) || '');
+    if (!reqFull) continue;
+
+    // AD = seq number (١،٢...) — used to identify data rows
+    var adVal = cleanNL(cellVal('AD' + rowNum));
+
+    // AH = days
+    var daysStr = cleanNL(cellVal('AH' + rowNum));
+
+    // J = source\r\ndept
+    var srcDept = cleanNL(cellVal('J' + rowNum));
+    // M = subject
+    var subject = cleanNL(cellVal('M' + rowNum));
+    // Could also try P for subject
+    if (!subject) subject = cleanNL(cellVal('P' + rowNum));
+
+    // I or J for emp — try K
+    var emp = cleanNL(cellVal('K' + rowNum));
+    if (!emp) emp = cleanNL(cellVal('J' + rowNum));
+
+    // E = date
+    var dateCol = cleanNL(cellVal('E' + rowNum));
+
+    // Parse req_id and date from AC
+    var rParts = splitNL(reqFull);
+    var reqId = rParts[0], date = rParts[1] || dateCol;
+
+    // Parse dept/source from J
+    var dParts = splitNL(srcDept);
+    var source = dParts[0], dept = dParts[1] || dParts[0];
+
+    // Parse days
+    var days = 0;
+    for (var k=0; k<daysStr.length; k++) {
+      var c = daysStr.charCodeAt(k);
+      if (c >= 48 && c <= 57) days = days*10+(c-48);
+      else if (c >= 0x0660 && c <= 0x0669) days = days*10+(c-0x0660);
+    }
+
+    if (!reqId && !subject && !dept) continue;
+
+    var key = (reqId||adVal) + '|' + subject.slice(0,30);
+    if (seen[key]) continue;
+    seen[key] = true;
+
+    records.push({
+      id:      reqId || ('\u0631\u0627\u0633-' + adVal),
+      dept:    dept  || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f',
+      source:  source,
+      subject: subject,
+      emp:     emp,
+      date:    date,
+      days:    days,
+      status:  '\u0645\u0641\u062a\u0648\u062d\u0629'
+    });
+  }
+
+  console.log('Raseel parsed records:', records.length);
+  return records.length > 0 ? records : null;
 }
 
 function handleDataUpload(input) {
