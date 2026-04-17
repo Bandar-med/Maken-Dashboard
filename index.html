@@ -4995,6 +4995,21 @@ function parseRaseelFile(workbook) {
   var records = [];
   var seen = {};
 
+  // Debug: log row 21 (index 20)
+  if (rows[20]) {
+    var dbgR = rows[20];
+    console.log('Row21 r[28]=', dbgR[28], 'type=', typeof dbgR[28]);
+    console.log('Row21 r[28] resolved=', resolve(dbgR[28]));
+    console.log('Row21 r[9]=', dbgR[9], '→', resolve(dbgR[9]));
+    console.log('Row21 length=', dbgR.length);
+  }
+  // Debug: log first 5 AC values
+  var dbgCount = 0;
+  for (var dbi = headerIdx+1; dbi < Math.min(headerIdx+20, rows.length); dbi++) {
+    var dbgAC = resolve(rows[dbi][colAC]);
+    if (dbgAC) { console.log('Row', dbi, 'AC=', JSON.stringify(dbgAC), 'codes:', dbgAC.split('').map(function(c){return c.charCodeAt(0);})); dbgCount++; if(dbgCount>=3) break; }
+  }
+
   for (var i = headerIdx + 1; i < rows.length; i++) {
     var r = rows[i];
     if (!r || r.length === 0) continue;
