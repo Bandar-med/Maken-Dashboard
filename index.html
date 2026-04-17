@@ -4846,7 +4846,7 @@ function detectFileType(filename, data) {
   if (f.includes('انشائي') || f.includes('بلدية')) return 'lic';
   if (f.includes('عمار') || f.includes('استديو') || f.includes('سعودي')) return 'studio';
   if (f.includes('مراحل') || f.includes('اشغال') || f.includes('شهادات')) return 'occ';
-  if (f.includes('ctsc') || f.includes('رسيل') || f.includes('raseel')) return 'raseel';
+  if (f.includes('ctsc') || f.includes('رسيل') || f.includes('raseel') || f.includes('ctsc_')) return 'raseel';
   return null;
 }
 
@@ -5070,7 +5070,21 @@ function handleDataUpload(input) {
         else { showToast('تم الإلغاء', 'warn'); return; }
       }
 
-      var records = parseXlsxFile(wb, fileType);
+      var records = null;
+      if (fileType === 'raseel') {
+        // raseel uses its own parser
+        records = parseRaseelFile(wb);
+        if (!records || records.length === 0) {
+          showToast('⚠ لم يتم العثور على بيانات رسيل في الملف', 'warn');
+          return;
+        }
+        window.raseelData = records;
+        try { localStorage.setItem('db_raseelData', JSON.stringify(records)); } catch(e){}
+        renderRaseel();
+        showToast('✓ تم تحديث رسيل — ' + records.length + ' معاملة');
+        return;
+      }
+      records = parseXlsxFile(wb, fileType);
       if (!records || records.length === 0) {
         showToast('⚠ لم يتم العثور على بيانات في الملف', 'warn');
         return;
@@ -5096,17 +5110,6 @@ function handleDataUpload(input) {
       } else if (fileType === 'occ') {
         window.occData = records;
         try { localStorage.setItem('db_occData', JSON.stringify(records)); } catch(e){}
-      } else if (fileType === 'raseel') {
-        var rasRecords = parseRaseelFile(wb);
-        if (!rasRecords || rasRecords.length === 0) {
-          showToast('⚠ لم يتم العثور على بيانات رسيل في الملف', 'warn');
-          return;
-        }
-        window.raseelData = rasRecords;
-        try { localStorage.setItem('db_raseelData', JSON.stringify(rasRecords)); } catch(e){}
-        renderRaseel();
-        showToast('✓ تم تحديث رسيل — ' + rasRecords.length + ' معاملة');
-        return;
       }
 
       showToast('✓ تم تحديث ' + labels[fileType] + ' — ' + records.length + ' سجل');
