@@ -4946,69 +4946,75 @@ function parseXlsxFile(workbook, fileType) {
 
 function parseRaseelFile(workbook) {
   var ws = workbook.Sheets[workbook.SheetNames[0]];
-  var rawData = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
-  if (!rawData || rawData.length < 5) return null;
-
-  // Build string lookup from shared strings
-  // SheetJS uses t:"s" for shared strings and provides v as index
-  // But some cells store numeric indices without t:"s" — we handle both
-  var ssTable = workbook.Strings || [];
-
-  // Use XLSX.utils.sheet_to_json with raw:false to get decoded values
   var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
   console.log('Raseel raw rows:', rows.length);
+  if (!rows || rows.length < 5) return null;
 
-  // Column mapping based on file structure:
-  // A = deadline date, E = emp, J = source\r\ndept, M = subject
-  // P = type, U = رقم\r\ndate, AC = seq(١٢٣), AD = days(٢ يوم)
-  // Header row has AC='رقم المعاملة'
+  // Find the header row containing رقم المعاملة
+  var headerIdx = -1;
+  var colAC = -1, colJ = -1, colM = -1, colE = -1, colU = -1, colAD = -1, colA = -1;
+
+  for (var hi = 0; hi < Math.min(30, rows.length); hi++) {
+    var r = rows[hi];
+    for (var ci = 0; ci < r.length; ci++) {
+      var h = String(r[ci] || '').trim();
+      if (h === 'رقم المعاملة') { colAC = ci; headerIdx = hi; }
+      if (h === 'الجهة الوارد منها الخطاب' || h.includes('الجهة الوارد')) colJ = ci;
+      if (h === 'موضوع المعاملة') colM = ci;
+    }
+    if (headerIdx >= 0) break;
+  }
+
+  // If header not found, use known positions from file structure
+  if (headerIdx < 0 || colAC < 0) {
+    // Known structure: AC=28, J=9, M=12, E=4, U=20, AD=29, A=0
+    colAC = 28; colJ = 9; colM = 12; colE = 4; colU = 20; colAD = 29; colA = 0;
+    headerIdx = 19; // row 20 (0-based: 19)
+    console.log('Raseel: using known column positions');
+  }
 
   var records = [];
-  var seen = new Set(); // dedup by id+subject
+  var seen = {};
+  var ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
 
-  for (var i = 0; i < rows.length; i++) {
+  for (var i = headerIdx + 1; i < rows.length; i++) {
     var r = rows[i];
     if (!r || r.length === 0) continue;
 
-    var ac = String(r[28] || '').trim(); // col AC = index 28
+    var ac = String(r[colAC] !== undefined ? r[colAC] : '').trim();
     if (!ac) continue;
     if (ac === 'رقم المعاملة' || ac === 'م') continue;
 
-    // Only data rows with Arabic numeral in AC
-    var isSeq = /^[٠-٩]+$/.test(ac);
+    // Check if ac contains only Arabic digits (١٢٣...)
+    var isSeq = ac.length > 0 && ac.length <= 4;
+    for (var ci2 = 0; ci2 < ac.length; ci2++) {
+      if (ARABIC_DIGITS.indexOf(ac[ci2]) < 0) { isSeq = false; break; }
+    }
     if (!isSeq) continue;
 
-    var srcDept = String(r[9]  || '').trim();  // col J = index 9
-    var subject = String(r[12] || '').trim();  // col M = index 12
-    var emp     = String(r[4]  || '').trim();  // col E = index 4
-    var reqFull = String(r[20] || '').trim();  // col U = index 20
-    var daysStr = String(r[29] || '').trim();  // col AD = index 29
-    var dateCol = String(r[0]  || '').trim();  // col A = index 0
+    var srcDept = String(r[colJ] !== undefined ? r[colJ] : '').trim();
+    var subject = String(r[colM] !== undefined ? r[colM] : '').trim();
+    var emp     = String(r[colE] !== undefined ? r[colE] : '').trim();
+    var reqFull = String(r[colU] !== undefined ? r[colU] : '').trim();
+    var daysStr = String(r[colAD]!== undefined ? r[colAD]: '').trim();
+    var dateCol = String(r[colA] !== undefined ? r[colA] : '').trim();
 
-    // Parse dept and source
+    // Parse dept/source from J (source\ndept format)
     var dept = '', source = '';
-    if (srcDept.indexOf('\r\n') >= 0) {
-      var parts = srcDept.split('\r\n');
-      source = parts[0].trim();
-      dept   = parts.slice(1).join(' ').trim();
-    } else if (srcDept.indexOf('\n') >= 0) {
-      var parts = srcDept.split('\n');
-      source = parts[0].trim();
-      dept   = parts.slice(1).join(' ').trim();
+    var nlIdx = srcDept.indexOf('\n');
+    if (nlIdx >= 0) {
+      source = srcDept.slice(0, nlIdx).trim();
+      dept   = srcDept.slice(nlIdx+1).trim();
     } else {
       dept = srcDept;
     }
 
-    // Parse req id and date
+    // Parse req_id/date from U
     var reqId = '', date = '';
-    if (reqFull.indexOf('\r\n') >= 0) {
-      var parts = reqFull.split('\r\n');
-      reqId = parts[0].trim();
-      date  = parts[1] ? parts[1].trim() : '';
-    } else if (reqFull.indexOf('\n') >= 0) {
-      var parts = reqFull.split('\n');
-      reqId = parts[0].trim();
-      date  = parts[1] ? parts[1].trim() : '';
+    var nlIdx2 = reqFull.indexOf('\n');
+    if (nlIdx2 >= 0) {
+      reqId = reqFull.slice(0, nlIdx2).trim();
+      date  = reqFull.slice(nlIdx2+1).trim();
     } else {
       reqId = reqFull;
       date  = dateCol;
@@ -5016,19 +5022,24 @@ function parseRaseelFile(workbook) {
 
     // Parse days
     var days = 0;
-    var dm = daysStr.match(/\d+/);
-    if (dm) days = parseInt(dm[0]);
+    var dm = daysStr.match(/[0-9]+/);
+    if (!dm) dm = daysStr.match(/[٠-٩]+/);
+    if (dm) {
+      // Convert Arabic digits to western
+      var numStr = dm[0].replace(/[٠-٩]/g, function(d){ return ARABIC_DIGITS.indexOf(d); });
+      days = parseInt(numStr) || 0;
+    }
 
-    // Clean subject
-    subject = subject.replace(/\r\n/g,' ').replace(/\n/g,' ').trim();
-    emp     = emp.replace(/\r\n/g,' ').replace(/\n/g,' ').trim();
+    subject = subject.replace(/\r?\n/g,' ').trim();
+    emp     = emp.replace(/\r?\n/g,' ').trim();
+    dept    = dept.replace(/\r?\n/g,' ').trim();
+    source  = source.replace(/\r?\n/g,' ').trim();
 
     if (!dept && !subject) continue;
 
-    // Dedup: skip if same id+subject already seen
     var key = reqId + '|' + subject.slice(0,30);
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (seen[key]) continue;
+    seen[key] = true;
 
     records.push({
       id:      reqId || ('RAS-' + ac),
