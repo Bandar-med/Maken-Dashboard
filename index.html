@@ -4946,24 +4946,30 @@ function parseXlsxFile(workbook, fileType) {
 
 function parseRaseelFile(workbook) {
   var ws = workbook.Sheets[workbook.SheetNames[0]];
-
-  // Use raw:true to get raw values (including numeric string indices)
   var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
   console.log('Raseel raw rows:', rows.length);
   if (!rows || rows.length < 5) return null;
 
-  // Build shared strings array from workbook
   var ss = [];
   if (workbook.Strings) {
-    ss = workbook.Strings.map(function(s){ return s && s.t ? s.t : String(s || ''); });
-  } else if (workbook.SSF) {
-    // fallback
+    ss = workbook.Strings.map(function(s){
+      if (!s) return '';
+      if (s.t !== undefined) return s.t;
+      if (s.v !== undefined) return String(s.v);
+      return String(s);
+    });
   }
   console.log('Raseel shared strings count:', ss.length);
 
-  // Helper: resolve a cell value
-  // If it's a number AND within ss range, return ss[value]
-  // If it's a string that already has Arabic text, return as-is
+  // Log diagnostic info
+  for (var di = 0; di < Math.min(30, rows.length); di++) {
+    if (rows[di] && rows[di].length > 2) {
+      console.log('First non-empty row:', di, 'len:', rows[di].length, 'r[0]=', rows[di][0], 'r[28]=', rows[di][28]);
+      break;
+    }
+  }
+  if (rows[20]) console.log('rows[20][28]=', rows[20][28], 'type:', typeof rows[20][28]);
+
   function resolve(val) {
     if (val === undefined || val === null || val === '') return '';
     if (typeof val === 'number') {
@@ -4974,55 +4980,41 @@ function parseRaseelFile(workbook) {
     return String(val);
   }
 
-  var ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩';
-
-  // Column positions (0-based): AC=28, J=9, M=12, E=4, U=20, AD=29, A=0
-  var colAC = 28, colJ = 9, colM = 12, colE = 4, colU = 20, colAD = 29, colA = 0;
-  var headerIdx = 19; // row 20 (0-based)
-
-  // Try to find header row dynamically
-  for (var hi = 0; hi < Math.min(30, rows.length); hi++) {
-    var r = rows[hi];
-    for (var ci = 0; ci < r.length; ci++) {
-      var h = resolve(r[ci]).trim();
-      if (h === 'رقم المعاملة') { colAC = ci; headerIdx = hi; break; }
-    }
-    if (headerIdx !== 19 || hi === 0) {
-      if (headerIdx === hi) break;
-    }
+  function splitNL(s) {
+    var idx = s.indexOf('\r\n');
+    if (idx >= 0) return [s.slice(0,idx).trim(), s.slice(idx+2).trim()];
+    idx = s.indexOf('\n');
+    if (idx >= 0) return [s.slice(0,idx).trim(), s.slice(idx+1).trim()];
+    return [s.trim(), ''];
   }
 
+  function cleanNL(s) {
+    return s.replace(/\r\n/g,' ').replace(/\n/g,' ').trim();
+  }
+
+  var colAC=28, colJ=9, colM=12, colE=4, colU=20, colAD=29, colA=0;
   var records = [];
   var seen = {};
 
-  // Debug: log row 21 (index 20)
-  if (rows[20]) {
-    var dbgR = rows[20];
-    console.log('Row21 r[28]=', dbgR[28], 'type=', typeof dbgR[28]);
-    console.log('Row21 r[28] resolved=', resolve(dbgR[28]));
-    console.log('Row21 r[9]=', dbgR[9], '→', resolve(dbgR[9]));
-    console.log('Row21 length=', dbgR.length);
-  }
-  // Debug: log first 5 AC values
-  var dbgCount = 0;
-  for (var dbi = headerIdx+1; dbi < Math.min(headerIdx+20, rows.length); dbi++) {
-    var dbgAC = resolve(rows[dbi][colAC]);
-    if (dbgAC) { console.log('Row', dbi, 'AC=', JSON.stringify(dbgAC), 'codes:', dbgAC.split('').map(function(c){return c.charCodeAt(0);})); dbgCount++; if(dbgCount>=3) break; }
-  }
-
-  for (var i = headerIdx + 1; i < rows.length; i++) {
+  for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
-    if (!r || r.length === 0) continue;
+    if (!r || r.length <= colAC) continue;
 
-    var ac = resolve(r[colAC]).trim();
+    var rawAC = r[colAC];
+    var ac = resolve(rawAC).trim();
     if (!ac) continue;
-    if (ac === 'رقم المعاملة' || ac === 'م') continue;
 
-    // Check Arabic digits only
-    var isSeq = ac.length > 0 && ac.length <= 4;
+    // Skip header
+    if (ac.indexOf('\u0631\u0642\u0645') >= 0) continue;
+
+    // Accept Arabic digits (0x0660-0x0669) or short western digits
+    var isSeq = ac.length >= 1 && ac.length <= 5;
     if (isSeq) {
-      for (var ci2 = 0; ci2 < ac.length; ci2++) {
-        if (ARABIC_DIGITS.indexOf(ac[ci2]) < 0) { isSeq = false; break; }
+      for (var k = 0; k < ac.length; k++) {
+        var code = ac.charCodeAt(k);
+        var isAr = (code >= 0x0660 && code <= 0x0669);
+        var isWe = (code >= 48 && code <= 57);
+        if (!isAr && !isWe) { isSeq = false; break; }
       }
     }
     if (!isSeq) continue;
@@ -5034,55 +5026,39 @@ function parseRaseelFile(workbook) {
     var daysStr = resolve(r[colAD]).trim();
     var dateCol = resolve(r[colA]).trim();
 
-    // Parse dept/source
-    var dept = '', source = '';
-    var nlIdx = srcDept.search(/\r?\n/);
-    if (nlIdx >= 0) {
-      source = srcDept.slice(0, nlIdx).trim();
-      dept   = srcDept.slice(nlIdx).replace(/^\r?\n/, '').trim();
-    } else { dept = srcDept; }
+    var deptParts = splitNL(srcDept);
+    var source = deptParts[0], dept = deptParts[1] || deptParts[0];
 
-    // Parse req_id/date
-    var reqId = '', date = '';
-    var nlIdx2 = reqFull.search(/\r?\n/);
-    if (nlIdx2 >= 0) {
-      reqId = reqFull.slice(0, nlIdx2).trim();
-      date  = reqFull.slice(nlIdx2).replace(/^\r?\n/, '').trim();
-    } else { reqId = reqFull; date = dateCol; }
+    var reqParts = splitNL(reqFull);
+    var reqId = reqParts[0], date = reqParts[1] || dateCol;
 
-    // Parse days
     var days = 0;
-    var dm = daysStr.match(/[0-9]+/);
-    if (!dm) {
-      var arabicNum = '';
-      for (var ci3 = 0; ci3 < daysStr.length; ci3++) {
-        var di = ARABIC_DIGITS.indexOf(daysStr[ci3]);
-        if (di >= 0) arabicNum += di;
-        else if (arabicNum) break;
-      }
-      if (arabicNum) days = parseInt(arabicNum);
-    } else { days = parseInt(dm[0]); }
+    for (var k2 = 0; k2 < daysStr.length; k2++) {
+      var code2 = daysStr.charCodeAt(k2);
+      if (code2 >= 48 && code2 <= 57) { days = days*10 + (code2-48); }
+      else if (code2 >= 0x0660 && code2 <= 0x0669) { days = days*10 + (code2-0x0660); }
+    }
 
-    subject = subject.replace(/\r?\n/g,' ').trim();
-    emp     = emp.replace(/\r?\n/g,' ').trim();
-    dept    = dept.replace(/\r?\n/g,' ').trim();
-    source  = source.replace(/\r?\n/g,' ').trim();
+    subject = cleanNL(subject);
+    emp     = cleanNL(emp);
+    dept    = cleanNL(dept);
+    source  = cleanNL(source);
 
     if (!dept && !subject) continue;
 
-    var key = (reqId || ac) + '|' + subject.slice(0,30);
+    var key = (reqId||ac) + '|' + subject.slice(0,30);
     if (seen[key]) continue;
     seen[key] = true;
 
     records.push({
-      id:      reqId || ('RAS-' + ac),
-      dept:    dept  || 'غير محدد',
+      id:      reqId || ('RAS-'+ac),
+      dept:    dept  || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f',
       source:  source,
       subject: subject,
       emp:     emp,
       date:    date,
       days:    days,
-      status:  'مفتوحة'
+      status:  '\u0645\u0641\u062a\u0648\u062d\u0629'
     });
   }
 
