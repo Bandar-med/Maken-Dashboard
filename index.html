@@ -4946,110 +4946,103 @@ function parseXlsxFile(workbook, fileType) {
 
 function parseRaseelFile(workbook) {
   var ws = workbook.Sheets[workbook.SheetNames[0]];
-  // Get all rows including empty cells
-  var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
-  if (!rows || rows.length < 2) return null;
+  var rawData = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
+  if (!rawData || rawData.length < 5) return null;
 
-  // Debug: log first 5 rows to console
-  console.log('Raseel rows sample:', rows.slice(0,5));
+  // Build string lookup from shared strings
+  // SheetJS uses t:"s" for shared strings and provides v as index
+  // But some cells store numeric indices without t:"s" — we handle both
+  var ssTable = workbook.Strings || [];
+
+  // Use XLSX.utils.sheet_to_json with raw:false to get decoded values
+  var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
+  console.log('Raseel raw rows:', rows.length);
+
+  // Column mapping based on file structure:
+  // A = deadline date, E = emp, J = source\r\ndept, M = subject
+  // P = type, U = رقم\r\ndate, AC = seq(١٢٣), AD = days(٢ يوم)
+  // Header row has AC='رقم المعاملة'
 
   var records = [];
-  var today = new Date();
+  var seen = new Set(); // dedup by id+subject
 
-  // Strategy: find column indices by scanning header rows
-  var idCol=-1, deptCol=-1, srcCol=-1, subjCol=-1, empCol=-1, dateCol=-1, statCol=-1, daysCol=-1;
-  var headerRow = -1;
-
-  for (var hi = 0; hi < Math.min(15, rows.length); hi++) {
-    var row = rows[hi];
-    var found = false;
-    for (var ci = 0; ci < row.length; ci++) {
-      var h = String(row[ci] || '').trim();
-      if (h === 'رقم المعاملة' || h === 'الرقم') { idCol = ci; found = true; }
-      if (h === 'الجهة' || h === 'الادارة' || h === 'الإدارة') { deptCol = ci; found = true; }
-      if (h === 'المصدر' || h === 'جهة الإحالة' || h === 'المرسل') { srcCol = ci; found = true; }
-      if (h === 'الموضوع' || h === 'موضوع المعاملة') { subjCol = ci; found = true; }
-      if (h === 'المكلف' || h === 'الموظف' || h === 'إسم الموظف' || h === 'اسم الموظف') { empCol = ci; found = true; }
-      if (h === 'تاريخ الإحالة' || h === 'التاريخ' || h === 'تاريخ الاحالة') { dateCol = ci; found = true; }
-      if (h === 'الحالة') { statCol = ci; found = true; }
-      if (h.includes('يوم') || h === 'المدة' || h === 'عدد الأيام') { daysCol = ci; found = true; }
-    }
-    if (found) { headerRow = hi; break; }
-  }
-
-  console.log('Raseel header row:', headerRow, 'cols: id='+idCol+' dept='+deptCol+' subj='+subjCol+' emp='+empCol+' date='+dateCol);
-
-  // If no header found, try positional reading
-  // Based on data structure seen: id, dept/source, emp, subject, date, days, status
-  if (headerRow < 0 || idCol < 0) {
-    // Try reading all rows positionally - look for rows with Arabic text
-    for (var i = 1; i < rows.length; i++) {
-      var r = rows[i];
-      if (!r || r.length < 3) continue;
-      
-      // Find the column with رقم المعاملة pattern (starts with 470...)
-      var foundId = '';
-      var foundDept = '';
-      var foundSubj = '';
-      var foundEmp = '';
-      var foundDate = '';
-      var foundDays = 0;
-      var foundStatus = 'مفتوحة';
-      
-      for (var ci = 0; ci < r.length; ci++) {
-        var val = String(r[ci] || '').trim();
-        if (!val) continue;
-        if (/^٤٧\d+/.test(val) || /^47\d+/.test(val)) { foundId = val; }
-        else if (val.includes('الإدارة') || val.includes('وكالة') || val.includes('الوكالة')) { foundDept = val; }
-        else if (val.includes('يوم') || /^\d+ يوم/.test(val)) { foundDays = parseInt(val) || 0; }
-        else if (/\d{1,2}-\d{1,2}-\d{4}|\d{1,2}\/\d{1,2}\/\d{4}/.test(val)) { foundDate = val; }
-        else if (val.length > 10 && /[؀-ۿ]/.test(val) && !foundSubj) { foundSubj = val; }
-      }
-      
-      if (foundId && foundDept) {
-        records.push({
-          id: foundId,
-          dept: foundDept,
-          source: '',
-          subject: foundSubj,
-          emp: foundEmp,
-          date: foundDate,
-          days: foundDays,
-          status: foundStatus
-        });
-      }
-    }
-    console.log('Raseel positional records:', records.length);
-    return records.length > 0 ? records : null;
-  }
-
-  // Header-based parsing
-  for (var i = headerRow + 1; i < rows.length; i++) {
+  for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
     if (!r || r.length === 0) continue;
 
-    var id      = idCol >= 0    ? String(r[idCol]   || '').trim() : '';
-    var dept    = deptCol >= 0  ? String(r[deptCol] || '').trim() : '';
-    var source  = srcCol >= 0   ? String(r[srcCol]  || '').trim() : '';
-    var subject = subjCol >= 0  ? String(r[subjCol] || '').trim() : '';
-    var emp     = empCol >= 0   ? String(r[empCol]  || '').trim() : '';
-    var dateStr = dateCol >= 0  ? String(r[dateCol] || '').trim() : '';
-    var status  = statCol >= 0  ? String(r[statCol] || '').trim() : 'مفتوحة';
-    var daysRaw = daysCol >= 0  ? String(r[daysCol] || '').trim() : '';
-    
-    if (!id && !dept) continue;
+    var ac = String(r[28] || '').trim(); // col AC = index 28
+    if (!ac) continue;
+    if (ac === 'رقم المعاملة' || ac === 'م') continue;
 
-    // Calculate days
-    var days = 0;
-    if (daysRaw) {
-      days = parseInt(daysRaw) || 0;
-    } else if (dateStr) {
-      var d = new Date(dateStr);
-      if (!isNaN(d.getTime())) days = Math.max(0, Math.floor((today - d) / 86400000));
+    // Only data rows with Arabic numeral in AC
+    var isSeq = /^[٠-٩]+$/.test(ac);
+    if (!isSeq) continue;
+
+    var srcDept = String(r[9]  || '').trim();  // col J = index 9
+    var subject = String(r[12] || '').trim();  // col M = index 12
+    var emp     = String(r[4]  || '').trim();  // col E = index 4
+    var reqFull = String(r[20] || '').trim();  // col U = index 20
+    var daysStr = String(r[29] || '').trim();  // col AD = index 29
+    var dateCol = String(r[0]  || '').trim();  // col A = index 0
+
+    // Parse dept and source
+    var dept = '', source = '';
+    if (srcDept.indexOf('\r\n') >= 0) {
+      var parts = srcDept.split('\r\n');
+      source = parts[0].trim();
+      dept   = parts.slice(1).join(' ').trim();
+    } else if (srcDept.indexOf('\n') >= 0) {
+      var parts = srcDept.split('\n');
+      source = parts[0].trim();
+      dept   = parts.slice(1).join(' ').trim();
+    } else {
+      dept = srcDept;
     }
 
-    records.push({ id:id||String(i), dept:dept, source:source, subject:subject, emp:emp, date:dateStr, days:days, status:status||'مفتوحة' });
+    // Parse req id and date
+    var reqId = '', date = '';
+    if (reqFull.indexOf('\r\n') >= 0) {
+      var parts = reqFull.split('\r\n');
+      reqId = parts[0].trim();
+      date  = parts[1] ? parts[1].trim() : '';
+    } else if (reqFull.indexOf('\n') >= 0) {
+      var parts = reqFull.split('\n');
+      reqId = parts[0].trim();
+      date  = parts[1] ? parts[1].trim() : '';
+    } else {
+      reqId = reqFull;
+      date  = dateCol;
+    }
+
+    // Parse days
+    var days = 0;
+    var dm = daysStr.match(/\d+/);
+    if (dm) days = parseInt(dm[0]);
+
+    // Clean subject
+    subject = subject.replace(/\r\n/g,' ').replace(/\n/g,' ').trim();
+    emp     = emp.replace(/\r\n/g,' ').replace(/\n/g,' ').trim();
+
+    if (!dept && !subject) continue;
+
+    // Dedup: skip if same id+subject already seen
+    var key = reqId + '|' + subject.slice(0,30);
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    records.push({
+      id:      reqId || ('RAS-' + ac),
+      dept:    dept  || 'غير محدد',
+      source:  source,
+      subject: subject,
+      emp:     emp,
+      date:    date,
+      days:    days,
+      status:  'مفتوحة'
+    });
   }
+
+  console.log('Raseel parsed records:', records.length);
   return records.length > 0 ? records : null;
 }
 
