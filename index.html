@@ -4946,97 +4946,92 @@ function parseXlsxFile(workbook, fileType) {
 
 function parseRaseelFile(workbook) {
   var ws = workbook.Sheets[workbook.SheetNames[0]];
-  var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
-  console.log('Raseel raw rows:', rows.length);
-  if (!rows || rows.length < 5) return null;
 
-  var ss = [];
-  if (workbook.Strings) {
-    ss = workbook.Strings.map(function(s){
-      if (!s) return '';
-      if (s.t !== undefined) return s.t;
-      if (s.v !== undefined) return String(s.v);
-      return String(s);
-    });
+  // Get sheet range
+  var ref = ws['!ref'] || 'A1:AI418';
+  var range = XLSX.utils.decode_range(ref);
+  var maxRow = range.e.r;
+  console.log('Raseel rows:', maxRow + 1);
+
+  // Helper: get cell value by address (e.g. 'J21')
+  function cellVal(addr) {
+    var cell = ws[addr];
+    if (!cell) return '';
+    if (cell.t === 's') return cell.v || '';  // shared string
+    if (cell.t === 'n') return cell.v;        // number
+    if (cell.t === 'b') return cell.v;        // boolean
+    return cell.w || cell.v || '';            // formatted or raw
   }
-  console.log('Raseel shared strings count:', ss.length);
 
-  // Log diagnostic info
-  for (var di = 0; di < Math.min(30, rows.length); di++) {
-    if (rows[di] && rows[di].length > 2) {
-      console.log('First non-empty row:', di, 'len:', rows[di].length, 'r[0]=', rows[di][0], 'r[28]=', rows[di][28]);
+  // Column letters we need
+  var COLS = { seq:'AC', emp:'E', srcDept:'J', subject:'M', type:'P', req:'U', days:'AD', date:'A' };
+
+  var records = [];
+  var seen = {};
+  var ARABIC_DIGITS = '\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669';
+
+  // Find header row (has رقم المعاملة in AC column)
+  var dataStart = 1; // default start from row 2 (0-based row 1)
+  for (var r = 0; r <= Math.min(30, maxRow); r++) {
+    var acVal = String(cellVal(COLS.seq + (r+1)) || '').trim();
+    if (acVal === '\u0631\u0642\u0645 \u0627\u0644\u0645\u0639\u0627\u0645\u0644\u0629') {
+      dataStart = r + 1;
       break;
     }
   }
-  if (rows[20]) console.log('rows[20][28]=', rows[20][28], 'type:', typeof rows[20][28]);
+  console.log('Raseel dataStart row:', dataStart + 1);
 
-  function resolve(val) {
-    if (val === undefined || val === null || val === '') return '';
-    if (typeof val === 'number') {
-      var idx = Math.round(val);
-      if (idx >= 0 && idx < ss.length) return ss[idx];
-      return String(val);
-    }
-    return String(val);
-  }
+  for (var r = dataStart; r <= maxRow; r++) {
+    var rowNum = r + 1; // 1-based row number
 
-  function splitNL(s) {
-    var idx = s.indexOf('\r\n');
-    if (idx >= 0) return [s.slice(0,idx).trim(), s.slice(idx+2).trim()];
-    idx = s.indexOf('\n');
-    if (idx >= 0) return [s.slice(0,idx).trim(), s.slice(idx+1).trim()];
-    return [s.trim(), ''];
-  }
-
-  function cleanNL(s) {
-    return s.replace(/\r\n/g,' ').replace(/\n/g,' ').trim();
-  }
-
-  var colAC=28, colJ=9, colM=12, colE=4, colU=20, colAD=29, colA=0;
-  var records = [];
-  var seen = {};
-
-  for (var i = 0; i < rows.length; i++) {
-    var r = rows[i];
-    if (!r || r.length <= colAC) continue;
-
-    var rawAC = r[colAC];
-    var ac = resolve(rawAC).trim();
+    var ac = String(cellVal(COLS.seq + rowNum) || '').trim();
     if (!ac) continue;
 
-    // Skip header
-    if (ac.indexOf('\u0631\u0642\u0645') >= 0) continue;
-
-    // Accept Arabic digits (0x0660-0x0669) or short western digits
+    // Check: ac should be Arabic sequence number (١٢٣...)
     var isSeq = ac.length >= 1 && ac.length <= 5;
     if (isSeq) {
       for (var k = 0; k < ac.length; k++) {
         var code = ac.charCodeAt(k);
-        var isAr = (code >= 0x0660 && code <= 0x0669);
-        var isWe = (code >= 48 && code <= 57);
-        if (!isAr && !isWe) { isSeq = false; break; }
+        if (!((code >= 0x0660 && code <= 0x0669) || (code >= 48 && code <= 57))) {
+          isSeq = false; break;
+        }
       }
     }
     if (!isSeq) continue;
 
-    var srcDept = resolve(r[colJ]).trim();
-    var subject = resolve(r[colM]).trim();
-    var emp     = resolve(r[colE]).trim();
-    var reqFull = resolve(r[colU]).trim();
-    var daysStr = resolve(r[colAD]).trim();
-    var dateCol = resolve(r[colA]).trim();
+    var srcDept = String(cellVal(COLS.srcDept + rowNum) || '').trim();
+    var subject = String(cellVal(COLS.subject + rowNum) || '').trim();
+    var emp     = String(cellVal(COLS.emp     + rowNum) || '').trim();
+    var reqFull = String(cellVal(COLS.req     + rowNum) || '').trim();
+    var daysStr = String(cellVal(COLS.days    + rowNum) || '').trim();
+    var dateCol = String(cellVal(COLS.date    + rowNum) || '').trim();
 
-    var deptParts = splitNL(srcDept);
-    var source = deptParts[0], dept = deptParts[1] || deptParts[0];
+    // Log first record for debug
+    if (records.length === 0) {
+      console.log('First seq row', rowNum, 'ac=', ac, 'srcDept=', srcDept.slice(0,30), 'subj=', subject.slice(0,30));
+    }
 
-    var reqParts = splitNL(reqFull);
-    var reqId = reqParts[0], date = reqParts[1] || dateCol;
+    // Split on newlines
+    function splitNL(s) {
+      var i1 = s.indexOf('\r\n');
+      if (i1 >= 0) return [s.slice(0,i1).trim(), s.slice(i1+2).trim()];
+      var i2 = s.indexOf('\n');
+      if (i2 >= 0) return [s.slice(0,i2).trim(), s.slice(i2+1).trim()];
+      return [s, ''];
+    }
+    function cleanNL(s) { var r=''; for(var i=0;i<s.length;i++){var c=s[i];r+=(c==='\r'||c==='\n')?' ':c;} return r.trim(); }
+
+    var dParts = splitNL(srcDept);
+    var source = dParts[0], dept = dParts[1] || dParts[0];
+
+    var rParts = splitNL(reqFull);
+    var reqId = rParts[0], date = rParts[1] || dateCol;
 
     var days = 0;
     for (var k2 = 0; k2 < daysStr.length; k2++) {
       var code2 = daysStr.charCodeAt(k2);
-      if (code2 >= 48 && code2 <= 57) { days = days*10 + (code2-48); }
-      else if (code2 >= 0x0660 && code2 <= 0x0669) { days = days*10 + (code2-0x0660); }
+      if (code2 >= 48 && code2 <= 57) days = days*10+(code2-48);
+      else if (code2 >= 0x0660 && code2 <= 0x0669) days = days*10+(code2-0x0660);
     }
 
     subject = cleanNL(subject);
