@@ -918,6 +918,18 @@ canvas { transition: opacity .3s; }
       <div class="topbar-title" id="topbar-title">وكالة المباني</div>
       <div class="topbar-sub" id="topbar-sub">متابعة الطلبات النشطة والتنبيهات</div>
     </div>
+  <!-- Daily Snapshot Trend Bar -->
+  <div id="trend-bar" style="display:none;background:var(--surface);border-bottom:1px solid var(--border);
+    padding:6px 24px;direction:rtl;display:flex;align-items:center;gap:24px;flex-wrap:wrap;font-size:11px;
+    color:var(--text-muted);font-family:'Cairo',sans-serif;">
+    <span style="font-weight:600;color:var(--text)">📊 مقارنة بآخر تحديث:</span>
+    <span id="trend-total"></span>
+    <span id="trend-critical"></span>
+    <span id="trend-delayed"></span>
+    <span id="trend-unassigned"></span>
+    <span id="trend-date" style="margin-right:auto;font-size:10px"></span>
+  </div>
+
     <div class="topbar-actions">
       <div class="live-badge"><span class="live-dot"></span>مباشر</div>
       <span id="topbar-last-update" style="font-size:11px;color:var(--text-muted);white-space:nowrap"></span>
@@ -932,7 +944,16 @@ canvas { transition: opacity .3s; }
           <input type="file" accept=".xlsx" style="display:none" onchange="handleDataUpload(this)">
         </label>
       </div>
-      <button class="btn-refresh" onclick="exportWakilAlerts()" title="تصدير تنبيهات للوكيل (JSON)" style="background:linear-gradient(135deg,#1b5239 0%,#0f2e1f 100%);color:#f4e4bc;border-color:#c9a961;font-weight:600">
+      <button class="btn-refresh" onclick="showGlobalUnassigned()" title="الطلبات غير المُسندة في جميع الأقسام"
+      style="background:linear-gradient(135deg,#4338ca 0%,#1e1b4b 100%);color:#e0e7ff;border-color:#818cf8;font-weight:600">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+      </svg>
+      المهام المعلقة
+    </button>
+    <button class="btn-refresh" onclick="exportWakilAlerts()" title="تصدير تنبيهات للوكيل (JSON)" style="background:linear-gradient(135deg,#1b5239 0%,#0f2e1f 100%);color:#f4e4bc;border-color:#c9a961;font-weight:600">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 6 6 1-4.5 4.5 1 6.5L12 17l-5.5 3 1-6.5L3 9l6-1 3-6z"/></svg>
       تنبيهات الوكيل
     </button>
@@ -1093,7 +1114,15 @@ canvas { transition: opacity .3s; }
         </div>
       </div>
 
-      <div style="margin-bottom:12px"><div class="stats-card" id="lic-stats"></div></div>
+      
+      <!-- Trend Chart -->
+      <div id="trend-chart-wrap" class="chart-card" style="margin-bottom:12px;display:none">
+        <div class="card-title">📈 اتجاه الطلبات — آخر 7 تحديثات</div>
+        <div style="position:relative;height:180px">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+<div style="margin-bottom:12px"><div class="stats-card" id="lic-stats"></div></div>
 
 
 
@@ -3128,6 +3157,8 @@ function renderLicenses() {
   if (_unassigned_count_el) _unassigned_count_el.textContent = unassigned.length + ' طلب';
 
   initPanel('panel-near', [...allNear]);
+  // Feature 2: Near-delay banner
+  updateNearDelayBanner(allNear.length);
 
   // Critical top-5
   var _el_panel_critical_count = document.getElementById('panel-critical-count'); if(_el_panel_critical_count) _el_panel_critical_count.textContent = `${critical.length} طلب — أكثر من 10 أيام`;
@@ -3930,6 +3961,11 @@ renderRaseel();
   var tashihCritical = tashihData.filter(function(r){ return r.days > 10; }).length;
   var badgeTashih = document.getElementById('badge-tashih');
   if (badgeTashih) badgeTashih.textContent = tashihCritical || '';
+
+  // Feature 1: Trend bar
+  updateTrendBar();
+  // Feature 5: Trend chart
+  renderTrendChart();
 })();
 // Set last update time
 (function() {
@@ -5348,6 +5384,269 @@ function _fallbackCopyAlerts(text){
   document.body.removeChild(ta);
 }
 
+// ═══════ FEATURE 1: Trend Bar ═══════
+function updateTrendBar() {
+  var snapshots = JSON.parse(localStorage.getItem('kpi_snapshots') || '{}');
+  var keys = Object.keys(snapshots).sort();
+  var bar = document.getElementById('trend-bar');
+  if (!bar) return;
+  if (keys.length < 2) { bar.style.display='none'; return; }
+  
+  var latest = snapshots[keys[keys.length-1]];
+  var prev   = snapshots[keys[keys.length-2]];
+  
+  function trendSpan(label, key, lowerIsBetter) {
+    var diff = latest[key] - prev[key];
+    if (diff === 0) return '<span>' + label + ': <b>' + latest[key] + '</b> <span style="color:var(--text-muted)">━</span></span>';
+    var good = lowerIsBetter ? diff < 0 : diff > 0;
+    var color = good ? 'var(--green)' : 'var(--red)';
+    var arrow = diff > 0 ? '▲' : '▼';
+    return '<span>' + label + ': <b>' + latest[key] + '</b> <span style="color:' + color + '">' + arrow + Math.abs(diff) + '</span></span>';
+  }
+  
+  var el_total = document.getElementById('trend-total');
+  var el_crit  = document.getElementById('trend-critical');
+  var el_del   = document.getElementById('trend-delayed');
+  var el_unas  = document.getElementById('trend-unassigned');
+  var el_date  = document.getElementById('trend-date');
+  
+  if (el_total) el_total.innerHTML = trendSpan('الإجمالي', 'total', false);
+  if (el_crit)  el_crit.innerHTML  = trendSpan('حرجة', 'critical', true);
+  if (el_del)   el_del.innerHTML   = trendSpan('متأخرة', 'delayed', true);
+  if (el_unas)  el_unas.innerHTML  = trendSpan('غير مسندة', 'unassigned', true);
+  if (el_date)  el_date.textContent = 'مقارنة بـ ' + keys[keys.length-2];
+  
+  bar.style.display = 'flex';
+}
+
+// ═══════ FEATURE 2: Near-delay alert ═══════
+function updateNearDelayBanner(nearCount) {
+  var banner = document.getElementById('near-delay-banner');
+  var text   = document.getElementById('near-delay-text');
+  if (!banner || !text) return;
+  if (nearCount > 0) {
+    text.textContent = nearCount + ' طلب سيتأخر خلال 24 ساعة (في اليوم الثالث)';
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+// ═══════ FEATURE 3: Global unassigned ═══════
+function showGlobalUnassigned() {
+  var modal = document.getElementById('global-unassigned-modal');
+  if (!modal) return;
+  
+  var allRows = [];
+  
+  // Licenses - 1 day or more
+  (typeof licData !== 'undefined' ? licData : [])
+    .filter(function(r){ return (!r.emp || r.emp.trim() === '') && r.days >= 1; })
+    .forEach(function(r){ allRows.push({section:'طلبات الرخص', id:r.id, loc:r.muni, desc:r.type, days:r.days}); });
+  
+  // Tashih - 1 day or more
+  (typeof tashihData !== 'undefined' ? tashihData : [])
+    .filter(function(r){ return (!r.emp || r.emp.trim() === '') && r.days >= 1; })
+    .forEach(function(r){ allRows.push({section:'تصحيح وضع مبنى', id:r.id, loc:r.muni, desc:r.type, days:r.days}); });
+  
+  // Studio - 1 day or more
+  (typeof studioData !== 'undefined' ? studioData : [])
+    .filter(function(r){ return (!r.emp || r.emp.trim() === '') && r.days >= 1; })
+    .forEach(function(r){ allRows.push({section:'الاستديو التصميمي', id:r.id, loc:r.muni, desc:r.type, days:r.days}); });
+  
+  // Occ - 1 day or more
+  (typeof occData !== 'undefined' ? occData : [])
+    .filter(function(r){ return (!r.emp || r.emp.trim() === '') && r.days >= 1; })
+    .forEach(function(r){ allRows.push({section:'شهادات الأشغال', id:r.id, loc:r.muni, desc:r.status, days:r.days}); });
+  
+  allRows.sort(function(a,b){ return b.days - a.days; });
+  
+  // Summary cards
+  var sections = {};
+  allRows.forEach(function(r){ sections[r.section] = (sections[r.section]||0)+1; });
+  var summaryEl = document.getElementById('global-unassigned-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = Object.keys(sections).map(function(sec){
+      return '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 14px;text-align:center">' +
+        '<div style="font-size:20px;font-weight:700;color:var(--red)">' + sections[sec] + '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted)">' + sec + '</div></div>';
+    }).join('') + '<div style="background:var(--bg);border:1px solid var(--blue);border-radius:8px;padding:8px 14px;text-align:center">' +
+      '<div style="font-size:20px;font-weight:700;color:var(--blue)">' + allRows.length + '</div>' +
+      '<div style="font-size:11px;color:var(--text-muted)">الإجمالي</div></div>';
+  }
+  
+  // Table
+  var tbody = document.getElementById('tbody-global-unassigned');
+  if (tbody) {
+    tbody.innerHTML = allRows.map(function(r){
+      return '<tr>' +
+        '<td><span class="badge badge-blue">' + r.section + '</span></td>' +
+        '<td><strong>' + r.id + '</strong></td>' +
+        '<td>' + (r.loc||'—') + '</td>' +
+        '<td>' + (r.desc||'—') + '</td>' +
+        '<td>' + daysPill(r.days) + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+  
+  modal.style.display = 'block';
+}
+
+// ═══════ FEATURE 4: Executive Print View ═══════
+function printExecutiveSummary() {
+  var lic = typeof licData !== 'undefined' ? licData : [];
+  var tashih = typeof tashihData !== 'undefined' ? tashihData : [];
+  var studio = typeof studioData !== 'undefined' ? studioData : [];
+  var occ = typeof occData !== 'undefined' ? occData : [];
+  var raseel = typeof raseelData !== 'undefined' ? raseelData : [];
+  
+  function stats(arr) {
+    return {
+      total: arr.length,
+      critical: arr.filter(function(r){ return r.days > 10; }).length,
+      delayed: arr.filter(function(r){ return r.days > 3 && r.days <= 10; }).length,
+      unassigned: arr.filter(function(r){ return !r.emp || r.emp.trim() === ''; }).length
+    };
+  }
+  
+  var now = new Date().toLocaleString('ar-SA');
+  var ls = stats(lic), ts = stats(tashih), ss = stats(studio), os = stats(occ);
+  
+  var printWin = window.open('', '_blank');
+  printWin.document.write('<html dir="rtl"><head><meta charset="utf-8"><title>ملخص تنفيذي — وكالة المباني</title>' +
+    '<style>body{font-family:Cairo,Arial,sans-serif;padding:24px;color:#111;direction:rtl}' +
+    'h1{font-size:20px;text-align:center;border-bottom:2px solid #333;padding-bottom:8px}' +
+    '.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}' +
+    '.card{border:1px solid #ddd;border-radius:8px;padding:12px;text-align:center}' +
+    '.num{font-size:28px;font-weight:700}.lbl{font-size:11px;color:#666}' +
+    'table{width:100%;border-collapse:collapse;margin-top:16px;font-size:12px}' +
+    'th,td{border:1px solid #ddd;padding:6px 8px;text-align:right}' +
+    'th{background:#f5f5f5;font-weight:600}' +
+    '@media print{body{padding:8px}}</style></head><body>' +
+    '<h1>🏛 ملخص تنفيذي — وكالة المباني</h1>' +
+    '<p style="text-align:center;color:#666;font-size:12px">تاريخ التقرير: ' + now + '</p>' +
+    '<table><thead><tr><th>القسم</th><th>الإجمالي</th><th>حرجة >10</th><th>متأخرة 4-10</th><th>غير مسندة</th></tr></thead><tbody>' +
+    '<tr><td>طلبات الرخص</td><td>' + ls.total + '</td><td style="color:#DC2626;font-weight:700">' + ls.critical + '</td><td style="color:#D97706">' + ls.delayed + '</td><td>' + ls.unassigned + '</td></tr>' +
+    '<tr><td>تصحيح وضع مبنى</td><td>' + ts.total + '</td><td style="color:#DC2626;font-weight:700">' + ts.critical + '</td><td style="color:#D97706">' + ts.delayed + '</td><td>' + ts.unassigned + '</td></tr>' +
+    '<tr><td>الاستديو التصميمي</td><td>' + ss.total + '</td><td style="color:#DC2626;font-weight:700">' + ss.critical + '</td><td style="color:#D97706">' + ss.delayed + '</td><td>' + ss.unassigned + '</td></tr>' +
+    '<tr><td>شهادات الأشغال</td><td>' + os.total + '</td><td style="color:#DC2626;font-weight:700">' + os.critical + '</td><td style="color:#D97706">' + os.delayed + '</td><td>' + os.unassigned + '</td></tr>' +
+    '<tr><td>رسيل (مفتوحة)</td><td>' + raseel.length + '</td><td colspan="3" style="color:#666;font-size:11px">معاملات مرفوعة من الجهات</td></tr>' +
+    '<tr style="font-weight:700;background:#f9f9f9"><td>المجموع</td><td>' + (ls.total+ts.total+ss.total+os.total) + '</td>' +
+    '<td style="color:#DC2626">' + (ls.critical+ts.critical+ss.critical+os.critical) + '</td>' +
+    '<td style="color:#D97706">' + (ls.delayed+ts.delayed+ss.delayed+os.delayed) + '</td>' +
+    '<td>' + (ls.unassigned+ts.unassigned+ss.unassigned+os.unassigned) + '</td></tr>' +
+    '</tbody></table>' +
+    '<p style="margin-top:24px;font-size:10px;color:#999;text-align:center">وكالة المباني — أمانة منطقة المدينة المنورة</p>' +
+    '<script>window.onload=function(){window.print();}<\/script></body></html>');
+  printWin.document.close();
+}
+
+// ═══════ FEATURE 5: Trend Chart ═══════
+var _trendChart = null;
+function renderTrendChart() {
+  var snapshots = JSON.parse(localStorage.getItem('kpi_snapshots') || '{}');
+  var keys = Object.keys(snapshots).sort();
+  var wrap = document.getElementById('trend-chart-wrap');
+  if (!wrap) return;
+  if (keys.length < 2) { wrap.style.display='none'; return; }
+  
+  wrap.style.display = 'block';
+  var ctx = document.getElementById('trendChart');
+  if (!ctx) return;
+  if (_trendChart) _trendChart.destroy();
+  
+  _trendChart = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: keys,
+      datasets: [
+        {label:'الإجمالي', data:keys.map(function(k){return snapshots[k].total;}), borderColor:'#2563EB', tension:0.3, fill:false},
+        {label:'حرجة', data:keys.map(function(k){return snapshots[k].critical;}), borderColor:'#DC2626', tension:0.3, fill:false},
+        {label:'متأخرة', data:keys.map(function(k){return snapshots[k].delayed;}), borderColor:'#D97706', tension:0.3, fill:false}
+      ]
+    },
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top'}},
+      scales:{x:{ticks:{font:{family:'Cairo',size:10}}}, y:{beginAtZero:true}}}
+  });
+}
+
+// ═══════ FEATURE 6: Employee Card ═══════
+function showEmployeeCard(empName) {
+  if (!empName || empName === '—') return;
+  
+  var allData = [
+    {src:'طلبات الرخص', data: typeof licData !== 'undefined' ? licData : []},
+    {src:'تصحيح وضع مبنى', data: typeof tashihData !== 'undefined' ? tashihData : []},
+    {src:'الاستديو التصميمي', data: typeof studioData !== 'undefined' ? studioData : []}
+  ];
+  
+  var empRows = [];
+  allData.forEach(function(s){
+    s.data.filter(function(r){ return r.emp === empName; })
+      .forEach(function(r){ empRows.push({section:s.src, id:r.id, muni:r.muni||'', type:r.type||'', status:r.status||'', days:r.days}); });
+  });
+  
+  if (empRows.length === 0) return;
+  
+  var critical = empRows.filter(function(r){ return r.days > 10; }).length;
+  var delayed  = empRows.filter(function(r){ return r.days > 3 && r.days <= 10; }).length;
+  var onTime   = empRows.length - critical - delayed;
+  var pct      = Math.round((onTime / empRows.length) * 100);
+  
+  var phone = (typeof EMP_PHONES !== 'undefined' && EMP_PHONES[empName]) || '';
+  var email = (typeof EMP_EMAILS !== 'undefined' && EMP_EMAILS[empName]) || '';
+  
+  var existing = document.getElementById('emp-card-modal');
+  if (existing) existing.remove();
+  
+  var modal = document.createElement('div');
+  modal.id = 'emp-card-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;direction:rtl;display:flex;align-items:center;justify-content:center';
+  modal.onclick = function(e){ if(e.target===modal) modal.remove(); };
+  
+  modal.innerHTML = '<div style="background:var(--surface);border-radius:12px;max-width:700px;width:90%;max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">' +
+    '<div style="padding:16px 20px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">' +
+    '<div style="width:40px;height:40px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px">' + empName[0] + '</div>' +
+    '<div><div style="font-weight:700;font-size:15px">' + empName + '</div>' +
+    '<div style="font-size:11px;color:var(--text-muted)">' +
+    (phone ? '<a href="tel:' + phone + '" style="color:var(--green);margin-left:8px">📞 ' + phone + '</a>' : '') +
+    (email ? '<a href="mailto:' + email + '" style="color:var(--blue)">✉ ' + email + '</a>' : '') +
+    '</div></div>' +
+    '<button onclick="document.getElementById(\'emp-card-modal\').remove()" style="margin-right:auto;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">×</button></div>' +
+    '<div style="padding:12px 20px;display:flex;gap:12px;border-bottom:1px solid var(--border)">' +
+    '<div style="text-align:center;flex:1"><div style="font-size:22px;font-weight:700;color:var(--blue)">' + empRows.length + '</div><div style="font-size:11px;color:var(--text-muted)">إجمالي الطلبات</div></div>' +
+    '<div style="text-align:center;flex:1"><div style="font-size:22px;font-weight:700;color:var(--red)">' + critical + '</div><div style="font-size:11px;color:var(--text-muted)">حرجة</div></div>' +
+    '<div style="text-align:center;flex:1"><div style="font-size:22px;font-weight:700;color:var(--amber)">' + delayed + '</div><div style="font-size:11px;color:var(--text-muted)">متأخرة</div></div>' +
+    '<div style="text-align:center;flex:1"><div style="font-size:22px;font-weight:700;color:var(--green)">' + pct + '%</div><div style="font-size:11px;color:var(--text-muted)">نسبة الإنجاز</div></div></div>' +
+    '<div style="padding:12px 20px"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr>' +
+    '<th style="padding:6px;border-bottom:2px solid var(--border);text-align:right">القسم</th>' +
+    '<th style="padding:6px;border-bottom:2px solid var(--border)">رقم الطلب</th>' +
+    '<th style="padding:6px;border-bottom:2px solid var(--border)">القطاع</th>' +
+    '<th style="padding:6px;border-bottom:2px solid var(--border)">الأيام</th>' +
+    '</tr></thead><tbody>' +
+    empRows.sort(function(a,b){return b.days-a.days;}).map(function(r){
+      return '<tr style="border-bottom:1px solid var(--border)">' +
+        '<td style="padding:6px"><span class="badge badge-blue" style="font-size:10px">' + r.section + '</span></td>' +
+        '<td style="padding:6px"><strong>' + r.id + '</strong></td>' +
+        '<td style="padding:6px">' + r.muni + '</td>' +
+        '<td style="padding:6px">' + daysPill(r.days) + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+  
+  document.body.appendChild(modal);
+}
+
+// ═══════ FEATURE 7: Cross-filter ═══════
+function applyCrossFilter(muni) {
+  // Set the same muni in all filter dropdowns
+  ['lic-muni', 'st-muni'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) { el.value = muni; }
+  });
+  if (typeof renderLicenses === 'function') renderLicenses();
+  if (typeof renderStudio === 'function') renderStudio();
+  showToast('✓ تم تطبيق الفلتر على جميع الأقسام: ' + (muni === 'all' ? 'الكل' : muni));
+}
+
 </script>
 
 <!-- ── Chatbot ── -->
@@ -5368,6 +5667,30 @@ function _fallbackCopyAlerts(text){
     <button id="chatbot-send" onclick="sendChatMessage()">إرسال</button>
     <input id="chatbot-input" type="text" placeholder="اكتب سؤالك هنا..."
       onkeydown="if(event.key==='Enter') sendChatMessage()">
+  </div>
+</div>
+
+
+<!-- Global Unassigned Modal -->
+<div id="global-unassigned-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);
+  z-index:9999;direction:rtl;overflow-y:auto" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:var(--surface);margin:40px auto;max-width:900px;border-radius:12px;
+    overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="padding:16px 20px;background:var(--bg);border-bottom:1px solid var(--border);
+      display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">📋</span>
+      <span style="font-weight:700;font-size:16px;color:var(--text)">المهام المعلقة — غير مُسندة في جميع الأقسام</span>
+      <button onclick="document.getElementById('global-unassigned-modal').style.display='none'"
+        style="margin-right:auto;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted)">×</button>
+    </div>
+    <div style="padding:16px 20px">
+      <div id="global-unassigned-summary" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap"></div>
+      <div class="table-wrap">
+        <table><thead><tr>
+          <th>القسم</th><th>رقم الطلب</th><th>القطاع/الجهة</th><th>النوع/الموضوع</th><th>الأيام</th>
+        </tr></thead><tbody id="tbody-global-unassigned"></tbody></table>
+      </div>
+    </div>
   </div>
 </div>
 
